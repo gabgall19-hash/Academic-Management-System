@@ -1,6 +1,6 @@
 # Academic Management System
 
-A comprehensive, serverless school administration platform designed for technical and primary education institutions. Built on Cloudflare's ecosystem for maximum performance and reliability.
+A comprehensive, serverless school administration platform designed for technical institutions. Built on Cloudflare's ecosystem for maximum performance and reliability.
 
 ## 🚀 Overview
 
