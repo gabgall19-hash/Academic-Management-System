@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Save, Calendar, CheckCircle, XCircle, Search, Layers, User, Plus, Edit, Trash2, FileSpreadsheet, Printer, Upload, FileText, ExternalLink, ShieldAlert } from 'lucide-react';
+import { Save, Calendar, CheckCircle, XCircle, Search, Layers, User, Plus, Edit, Trash2, FileSpreadsheet, Printer, Upload, FileText, ExternalLink, ShieldAlert, Eye, EyeOff } from 'lucide-react';
 
 import Skeleton, { TableSkeleton } from '../UI/Skeleton';
 import SaveStatusButton from '../UI/SaveStatusButton';
 import Modal from '../UI/Modal';
 import '../../css/panels/AttendancePanel.css';
 
-const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
+const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeacherDetailToggle }) => {
   const [loading, setLoading] = useState(true);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [teachers, setTeachers] = useState([]);
@@ -33,8 +33,19 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
   }, [showWeekends]);
   
   const [suspendedDays, setSuspendedDays] = useState([]); // array of YYYY-MM-DD
+  const [fechaGrabadoLocal, setFechaGrabadoLocal] = useState('');
+
+  useEffect(() => {
+    setFechaGrabadoLocal(data.config?.[`fecha_grabado_${selectedMonth}`] || '');
+  }, [selectedMonth, data.config]);
   
   const [selectedTeacher, setSelectedTeacher] = useState(null); // Para Ficha del Docente
+  
+  useEffect(() => {
+    if (onTeacherDetailToggle) {
+      onTeacherDetailToggle(!!selectedTeacher);
+    }
+  }, [selectedTeacher, onTeacherDetailToggle]);
   const [showTeacherForm, setShowTeacherForm] = useState(false);
   const [teacherForm, setTeacherForm] = useState({ 
     id: null, dni: '', apellidos_nombres: '', cargo: '', 
@@ -234,6 +245,44 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
     return '';
   };
 
+  const getBadgeStatusStyle = (teacher) => {
+    if (!teacher) return {};
+    const estado = teacher.estado_actual || '';
+    
+    if (estado.includes('Tareas Pasivas')) {
+      return { background: '#ffedd5', color: '#9a3412', border: '1px solid rgba(154, 52, 18, 0.2)' };
+    }
+    if (estado === 'Baja y Reintegro') {
+      return { background: '#fef9c3', color: '#854d0e', border: '1px solid rgba(133, 77, 14, 0.2)' };
+    }
+    if (estado === 'Baja') {
+      return { background: 'rgba(75, 133, 211, 0.15)', color: '#4b85d3', border: '1px solid rgba(75, 133, 211, 0.3)' };
+    }
+    if (estado === 'Relevado de Funciones') {
+      return { background: '#fee2e2', color: '#991b1b', border: '1px solid rgba(153, 27, 27, 0.2)' };
+    }
+    // Activo en el cargo
+    return { background: '#dcfce7', color: '#166534', border: '1px solid rgba(22, 101, 52, 0.2)' };
+  };
+
+  const getBadgeStatusText = (teacher) => {
+    if (!teacher) return '';
+    if (teacher.estado_actual === 'Tareas Pasivas') {
+      let parts = [];
+      if (teacher.tp_definitivas === 1 || teacher.tp_definitivas === true) parts.push('Definitivas');
+      if (teacher.tp_transitorias === 1 || teacher.tp_transitorias === true) parts.push('Transitorias');
+      if (teacher.tp_horario_reducido === 1 || teacher.tp_horario_reducido === true) parts.push('Reducción Horaria');
+      if (teacher.tp_concentracion === 1 || teacher.tp_concentracion === true) {
+        parts.push(`Concentración Horaria${teacher.institucion_destino ? `: ${teacher.institucion_destino}` : ''}`);
+      }
+      return parts.length > 0 ? `Tareas Pasivas (${parts.join(' - ')})` : 'Tareas Pasivas';
+    }
+    if (teacher.estado_actual === 'Relevado de Funciones') {
+      return `Relevado de Funciones${teacher.institucion_destino ? ` - ${teacher.institucion_destino}` : ''}`;
+    }
+    return teacher.estado_actual;
+  };
+
   const getExceededLicenses = (teacherId) => {
     if (!data.licencias || !yearlyAttendance.length) return [];
     
@@ -300,36 +349,123 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
     const instCodigo = data.config?.inst_codigo || '233';
     const instLocalidad = data.config?.inst_localidad || 'Rio Gallegos';
     const instDirector = data.config?.inst_director || 'Terron. Maria Alicia';
+    const fechaGrabado = data.config?.[`fecha_grabado_${selectedMonth}`] || '';
+
+    const teacherCount = filteredTeachers.length;
+    
+    // Scaling system based on number of teachers
+    let fontSizeTable = '6.5pt';
+    let cellPadding = '1px 1px';
+    let cellHeight = '15px';
+    let headerHeight = '80px';
+    let footerMargin = '2rem';
+    let referencesSize = '5.5pt';
+    let importantSize = '6pt';
+    let signatureHeight = '42px';
+    let marginTopReferences = '0.8rem';
+    let titleMargin = '0.5rem';
+    let fontSizeLabels = '7.5pt';
+    let fontSizeDate = '8.5pt';
+
+    if (teacherCount <= 12) {
+      fontSizeTable = '8.5pt';
+      cellPadding = '4px 3px';
+      cellHeight = '24px';
+      headerHeight = '90px';
+      footerMargin = '4rem';
+      referencesSize = '7pt';
+      importantSize = '7.5pt';
+      signatureHeight = '55px';
+      marginTopReferences = '2rem';
+      titleMargin = '1.2rem';
+      fontSizeLabels = '9.5pt';
+      fontSizeDate = '10.5pt';
+    } else if (teacherCount <= 20) {
+      fontSizeTable = '7.5pt';
+      cellPadding = '2px 2px';
+      cellHeight = '18px';
+      headerHeight = '85px';
+      footerMargin = '3rem';
+      referencesSize = '6.5pt';
+      importantSize = '7pt';
+      signatureHeight = '48px';
+      marginTopReferences = '1.5rem';
+      titleMargin = '1rem';
+      fontSizeLabels = '8.5pt';
+      fontSizeDate = '9.5pt';
+    } else if (teacherCount <= 35) {
+      fontSizeTable = '6.5pt';
+      cellPadding = '1.5px 1px';
+      cellHeight = '14px';
+      headerHeight = '70px';
+      footerMargin = '2rem';
+      referencesSize = '5.5pt';
+      importantSize = '6pt';
+      signatureHeight = '40px';
+      marginTopReferences = '1rem';
+      titleMargin = '0.6rem';
+      fontSizeLabels = '7.5pt';
+      fontSizeDate = '8.5pt';
+    } else if (teacherCount <= 50) {
+      fontSizeTable = '5pt';
+      cellPadding = '0.5px 0.5px';
+      cellHeight = '10.5px';
+      headerHeight = '55px';
+      footerMargin = '1.2rem';
+      referencesSize = '4.8pt';
+      importantSize = '5.2pt';
+      signatureHeight = '32px';
+      marginTopReferences = '0.6rem';
+      titleMargin = '0.4rem';
+      fontSizeLabels = '6pt';
+      fontSizeDate = '7pt';
+    } else {
+      // 50+ teachers, extremely dense to fit on a single A4 page
+      fontSizeTable = '4pt';
+      cellPadding = '0px';
+      cellHeight = '8.5px';
+      headerHeight = '42px';
+      footerMargin = '0.5rem';
+      referencesSize = '4pt';
+      importantSize = '4.2pt';
+      signatureHeight = '24px';
+      marginTopReferences = '0.4rem';
+      titleMargin = '0.2rem';
+      fontSizeLabels = '5pt';
+      fontSizeDate = '6pt';
+    }
 
     const htmlContent = `
       <html>
         <head>
           <title>Asistencia Docente - ${monthName}</title>
           <style>
-            @page { size: landscape; margin: 0.5cm; }
+            @page { size: landscape; margin: 0.2cm; }
             body { 
               font-family: 'Arial Narrow', sans-serif; 
               margin: 0; 
-              padding: 0.5cm; 
+              padding: 0.2cm; 
               background: #f0f0f0; 
               display: flex; 
               flex-direction: column; 
               align-items: center;
               color: black;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
             }
             .paper {
               background: white;
-              width: 287mm;
-              padding: 15px;
+              width: 293mm;
+              padding: 10px;
               box-sizing: border-box;
               box-shadow: 0 0 10px rgba(0,0,0,0.1);
-              min-height: 200mm;
+              min-height: 205mm;
             }
             .header-top { 
               display: flex; 
               justify-content: space-between; 
               align-items: center; 
-              margin-bottom: 0.5rem;
+              margin-bottom: ${titleMargin};
               width: 100%;
             }
             .header-top h1 { font-size: 1.3rem; margin: 0; text-align: left; }
@@ -337,23 +473,23 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
             
             .info-box { 
               display: flex; 
-              border: 1.5px solid black; 
               padding: 0; 
               margin-top: 0.5rem; 
               font-size: 0.85rem; 
               text-align: left;
             }
-            .info-col { border-right: 1.5px solid black; padding: 5px 10px; flex: 1; }
-            .info-col:last-child { border-right: none; }
+            .info-col { padding: 5px 10px; flex: 1; }
             
-            table { width: 100%; border-collapse: collapse; font-size: 6.5pt; border: 1.5px solid black; margin-top: 1rem; table-layout: fixed; }
+            table { width: 100%; border-collapse: collapse; font-size: ${fontSizeTable}; border: 1.5px solid black; margin-top: 0.3rem; table-layout: fixed; }
             th, td { 
               border: 1px solid black !important; 
-              padding: 1px; 
+              padding: ${cellPadding} !important; 
               text-align: center; 
               word-break: break-all;
-              height: 16px;
-              color: black !important;
+              height: ${cellHeight};
+              color: black;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
             }
             th { background: #f0f0f0 !important; font-weight: bold; vertical-align: bottom; }
             
@@ -365,19 +501,27 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
             .col-espacio { width: 75px; }
             .col-turno { width: 32px; }
             .col-day { width: 19px; }
-            .col-day.suspended { background-color: transparent !important; }
+            .col-day.suspended { background-color: rgb(106, 189, 255) !important; }
             .col-total { width: 38px; }
+            .wrap-text {
+              white-space: normal !important;
+              word-break: normal !important;
+              overflow-wrap: break-word !important;
+              word-wrap: break-word !important;
+              line-height: 1 !important;
+              padding: 1px 2px !important;
+            }
             
             .vertical-text { 
               writing-mode: vertical-rl; 
               transform: rotate(180deg); 
               text-align: center; 
               white-space: nowrap;
-              font-size: 6.5pt;
+              font-size: ${fontSizeTable};
               line-height: 1;
               max-height: 100%;
             }
-            .ui-vertical-header { height: 85px; }
+            .ui-vertical-header { height: ${headerHeight}; }
             @media print { 
               body { background: white; padding: 0; }
               .paper { box-shadow: none; width: 100%; padding: 0; margin: 0; }
@@ -419,9 +563,13 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
                   <th class="col-n" rowspan="2">N°</th>
                   <th class="col-dni" rowspan="2">Documento</th>
                   <th class="col-name" rowspan="2">Apellido y Nombres</th>
-                  <th class="col-cargo" rowspan="2">Codigo del Cargo/Horas</th>
+                  <th class="col-cargo wrap-text" rowspan="2">Codigo del Cargo/Horas</th>
                   <th class="col-chs" rowspan="2">C/HS</th>
-                  <th class="col-espacio" rowspan="2">Cargo/Espacios Curriculares</th>
+                  <th class="col-espacio wrap-text" rowspan="2" style="padding: 0 !important; vertical-align: bottom !important; font-weight: bold; background: white !important;">
+                    <div style="padding: 3px 0; font-size: 6.5pt; font-weight: bold; line-height: 1.1; border-bottom: 1px solid black; color: black !important; text-align: center;">Cargo/ Espacios Curriculares</div>
+                    <div style="background-color: #fef9c3 !important; color: #854d0e !important; padding: 2px 0; font-size: 5pt; font-weight: bold; border-bottom: 1px solid black; text-transform: uppercase; text-align: center; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;">Baja y Reintegro</div>
+                    <div style="background-color: rgb(75, 133, 211) !important; color: white !important; padding: 2px 0; font-size: 5pt; font-weight: bold; text-transform: uppercase; text-align: center; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;">Baja</div>
+                  </th>
                   <th class="col-turno" rowspan="2">Turno</th>
                   <th colspan="${days.length}">${monthName}</th>
                   <th colspan="4">Totales</th>
@@ -438,38 +586,105 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
                 ${filteredTeachers.map((t, i) => {
                   const statusEspecial = getStatusDescription(t);
                   
+                  let cargoCellStyle = 'text-align: left; padding-left: 3px;';
+                  let statusTextColor = '#dc2626'; // Default red
+                  
+                  const isReintegroMonth = t.estado_actual === 'Baja y Reintegro' && (!t.reintegro_fecha || t.reintegro_fecha.slice(0, 7) === selectedMonth);
+                  const isBajaMonth = t.estado_actual === 'Baja' && (!t.baja_fecha || t.baja_fecha.slice(0, 7) === selectedMonth);
+                  
+                  if (isReintegroMonth) {
+                    cargoCellStyle += ' background-color: #fef9c3 !important; color: #854d0e !important;';
+                    statusTextColor = '#854d0e';
+                  } else if (isBajaMonth) {
+                    cargoCellStyle += ' background-color: rgb(75, 133, 211) !important; color: white !important;';
+                    statusTextColor = 'white';
+                  }
+                  
                   return `
                   <tr>
                     <td>${i + 1}</td>
                     <td>${t.dni}</td>
                     <td class="col-name">${t.apellidos_nombres}</td>
-                    <td>${t.codigo_cargo || ''}</td>
+                    <td class="wrap-text">${t.codigo_cargo || ''}</td>
                     <td>${t.c_hs || ''}</td>
-                    <td>
+                    <td class="wrap-text" style="${cargoCellStyle}">
                       ${t.cargo || ''}
-                      ${statusEspecial ? `<div style="font-size: 5pt; color: #dc2626; font-weight: bold; line-height: 1; margin-top: 2px; text-transform: uppercase;">${statusEspecial}</div>` : ''}
+                      ${statusEspecial ? `<div style="font-size: 5pt; color: ${statusTextColor}; font-weight: bold; line-height: 1; margin-top: 2px; text-transform: uppercase;">${statusEspecial}</div>` : ''}
                     </td>
                     <td>${t.turno || ''}</td>
                     ${days.map(d => {
                       const val = getEffectiveAttendance(t, d.date);
                       const isSuspended = suspendedDays.includes(d.date);
-                      const isVertical = t.estado_actual === 'Tareas Pasivas' && t.tp_concentracion && val && val !== '';
+                      
+                      let cellContent = val || '';
+                      let cellStyle = '';
+                      
+                      if (val && val !== '') {
+                        const valTrimmed = val.trim();
+                        const len = valTrimmed.length;
+                        
+                        if (t.estado_actual === 'Tareas Pasivas' && t.tp_concentracion) {
+                          cellContent = `<div style="writing-mode: vertical-rl; transform: rotate(180deg); font-size: 10pt; font-weight: bold; line-height: 1.1; margin: 0 auto; display: flex; align-items: center; justify-content: center; white-space: nowrap; padding: 2px 0;">${valTrimmed}</div>`;
+                          cellStyle = 'padding: 0 !important;';
+                        } else if (len === 3) {
+                          // 3 characters -> fit horizontally in a single line
+                          cellContent = `<div style="font-size: 7pt; letter-spacing: -0.4px; white-space: nowrap; word-break: keep-all; display: inline-block; font-weight: bold; line-height: 1;">${valTrimmed}</div>`;
+                        } else if (len > 3) {
+                          // More than 3 characters -> vertical text format
+                          cellContent = `<div style="writing-mode: vertical-rl; transform: rotate(180deg); font-size: 10pt; font-weight: bold; line-height: 1.1; margin: 0 auto; display: flex; align-items: center; justify-content: center; letter-spacing: -0.2px; white-space: nowrap; padding: 2px 0;">${valTrimmed}</div>`;
+                          cellStyle = 'padding: 0 !important;';
+                        }
+                      }
+                      
                       return `
-                        <td style="${isSuspended ? 'background-color: rgb(106, 189, 255) !important;' : ''} ${isVertical ? 'padding: 0;' : ''}">
-                          ${isVertical 
-                            ? `<div class="vertical-text" style="height: 100%; width: 100%; font-size: 5pt; margin: 0 auto; display: flex; align-items: center; justify-content: center;">${val}</div>` 
-                            : val
-                          }
+                        <td style="${isSuspended ? 'background-color: rgb(106, 189, 255) !important;' : ''} ${cellStyle}">
+                          ${cellContent}
                         </td>`;
                     }).join('')}
-                    <td></td><td></td><td></td><td></td>
+                    <td style="background-color: rgb(106, 189, 255) !important;"></td>
+                    <td style="background-color: rgb(106, 189, 255) !important;"></td>
+                    <td style="background-color: rgb(106, 189, 255) !important;"></td>
+                    <td style="background-color: rgb(106, 189, 255) !important;"></td>
                   </tr>
                 `}).join('')}
               </tbody>
             </table>
-            <div class="footer-info">
-              <div style="border-top: 1.5px solid black; width: 220px; text-align: center; margin-top: 3rem; font-size: 0.75rem; font-weight: bold;">
-                Firma y Sello
+            <div class="footer-info" style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: ${footerMargin}; width: 100%;">
+              <!-- Secretario (Extremo izquierdo) -->
+              <div style="display: flex; flex-direction: column; align-items: center; position: relative; width: 220px; text-align: center;">
+                <img src="/Firma.png" alt="Firma" style="height: ${signatureHeight}; width: auto; object-fit: contain; margin-bottom: -12px; z-index: 10; mix-blend-mode: multiply;" />
+                <div style="border-top: 1.5px solid black; width: 100%; font-size: ${fontSizeLabels}; font-weight: bold; padding-top: 2px;">
+                  Secretario
+                </div>
+              </div>
+              
+              <!-- Fecha de Grabado (Extremo derecho) -->
+              <div style="display: flex; flex-direction: column; align-items: center; width: 220px; text-align: center;">
+                <div style="font-size: ${fontSizeDate}; font-weight: bold; margin-bottom: 5px; height: 16px;">
+                  ${fechaGrabado || ''}
+                </div>
+                <div style="border-top: 1.5px solid black; width: 100%; font-size: ${fontSizeLabels}; font-weight: bold; padding-top: 2px;">
+                  Fecha de Grabado
+                </div>
+              </div>
+            </div>
+
+            <!-- Referencias de Abreviaturas y Notas Importantes -->
+            <div style="margin-top: ${marginTopReferences}; border-top: 1px solid #ccc; padding-top: 6px; font-size: ${referencesSize}; text-align: left; line-height: 1.25; color: black !important; font-family: 'Arial Narrow', Arial, sans-serif; width: 100%;">
+              <div style="margin-bottom: 3px;">
+                <strong>Referencias de Abreviaturas:</strong> <strong>A:</strong> Asistió - <strong>L (8) L (10) L (11) L (12) L (18) L (20) L(22) L (23) L (24) L (25) L (27) L (28) L (30) L(1117)</strong> (Según sea Art. Nº 8, 10, 11, etc). <strong>EC</strong> (Enfermedades Crónicas) - <strong>PP:</strong> Paro Provincial - <strong>PN:</strong> Paro Nacional - <strong>RS:</strong> Retención de Servicios.
+              </div>
+              <div style="margin-bottom: 5px;">
+                <strong>CS:</strong> Comisión de Servicios - <strong>LCMJ:</strong> Licencia Cargo Mayor Jerarquía - Rellenar con color y/o negro los campos donde se haya suspendido la Actividad Escolar al igual que los Domingos y/o Feriados Nacionales y/o Provinciales.
+              </div>
+              
+              <div style="margin-top: 4px; padding: 4px 0; font-size: ${importantSize};">
+                <div style="margin-bottom: 2px;">
+                  <strong>IMPORTANTE:</strong> <span style="background-color: #ffff00; font-weight: bold; padding: 0 4px;">TODOS LOS CAMPOS DEBEN VENIR COMPLETOS. <span style="color: #ff0000;">NO MODIFICAR LA PLANILLA.</span></span> LA MISMA DEBERÁ SER ENVIADA DEL 1 AL 5 DE CADA MES CON LA FIRMA DEL DIRECTIVO A CARGO Y SECRETARIO.
+                </div>
+                <div style="background-color: #ffff00; font-weight: bold; display: inline-block; padding: 0 4px;">
+                  EL DÍA 5 DE CADA MES SE CONSIDERA FECHA LÍMITE
+                </div>
               </div>
             </div>
           </div>
@@ -495,6 +710,21 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
       showToast('Calendario actualizado', 'success');
     } catch(e) {
       showToast('Error al guardar', 'error');
+    }
+  };
+
+  const saveFechaGrabado = async (value) => {
+    try {
+      if (data.config) {
+        data.config[`fecha_grabado_${selectedMonth}`] = value;
+      }
+      await apiService.fetchData('/api/data?type=config', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'update_setting', clave: `fecha_grabado_${selectedMonth}`, valor: value })
+      });
+      showToast('Fecha de grabado guardada', 'success');
+    } catch(err) {
+      showToast('Error al guardar fecha de grabado', 'error');
     }
   };
 
@@ -634,9 +864,24 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
   const filteredTeachers = teachers.filter(t => {
     const matchesSearch = t.apellidos_nombres.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           t.dni.includes(searchTerm);
-    // Excluir docentes con baja activa si aplica
-    if (t.estado_actual === 'Baja' && t.excluir_asistencia === 1) return false;
-    return matchesSearch;
+    
+    if (!matchesSearch) return false;
+
+    // A) FECHA DE ALTA (alta_fecha)
+    // El docente solo debe aparecer en el listado a partir del año y mes de su alta.
+    if (t.alta_fecha) {
+      const altaYM = t.alta_fecha.substring(0, 7); // Formato YYYY-MM
+      if (selectedMonth < altaYM) return false;
+    }
+
+    // B) FECHA DE BAJA (baja_fecha)
+    // El docente se mantiene en el listado por el mes de su baja, pero al mes siguiente desaparece.
+    if (t.baja_fecha && t.estado_actual === 'Baja') {
+      const bajaYM = t.baja_fecha.substring(0, 7); // Formato YYYY-MM
+      if (selectedMonth > bajaYM) return false;
+    }
+
+    return true;
   });
 
   return (
@@ -651,7 +896,28 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
               <input type="text" className="input-field" value={teacherForm.dni} onChange={handleDniChange} placeholder="XX.XXX.XXX" required />
             </label>
             <label>Estado Actual
-              <select className="input-field" value={teacherForm.estado_actual} onChange={e => setTeacherForm({...teacherForm, estado_actual: e.target.value})}>
+              <select className="input-field" value={teacherForm.estado_actual} onChange={e => {
+                const nextState = e.target.value;
+                const updates = { estado_actual: nextState };
+                if (nextState !== 'Baja') {
+                  updates.baja_fecha = '';
+                  updates.excluir_asistencia = 0;
+                }
+                if (nextState !== 'Baja y Reintegro') {
+                  updates.reintegro_fecha = '';
+                }
+                if (nextState !== 'Tareas Pasivas') {
+                  updates.tp_transitorias = 0;
+                  updates.tp_horario_reducido = 0;
+                  updates.tp_definitivas = 0;
+                  updates.tp_concentracion = 0;
+                  updates.c_hs_reducidas = '';
+                }
+                if (nextState !== 'Relevado de Funciones' && nextState !== 'Tareas Pasivas') {
+                  updates.institucion_destino = '';
+                }
+                setTeacherForm({ ...teacherForm, ...updates });
+              }}>
                 <option value="Activo en el cargo">Activo en el cargo</option>
                 <option value="Baja y Reintegro">Baja y Reintegro</option>
                 <option value="Baja">Baja</option>
@@ -662,9 +928,16 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
             <label>Código del Cargo/Horas
               <input type="text" className="input-field" value={teacherForm.codigo_cargo} onChange={e => setTeacherForm({...teacherForm, codigo_cargo: e.target.value})} />
             </label>
-            <label>C/ HS
-              <input type="text" className="input-field" value={teacherForm.c_hs} onChange={e => setTeacherForm({...teacherForm, c_hs: e.target.value})} />
-            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: teacherForm.tp_horario_reducido === 1 ? '1fr 1fr' : '1fr', gap: '10px' }}>
+              <label>C/ HS
+                <input type="text" className="input-field" value={teacherForm.c_hs} onChange={e => setTeacherForm({...teacherForm, c_hs: e.target.value})} />
+              </label>
+              {teacherForm.tp_horario_reducido === 1 && (
+                <label>C/ HS (Reducidas)
+                  <input type="text" className="input-field" value={teacherForm.c_hs_reducidas || ''} onChange={e => setTeacherForm({...teacherForm, c_hs_reducidas: e.target.value})} />
+                </label>
+              )}
+            </div>
             <label>Cargo / Espacio Curricular
               <input type="text" className="input-field" value={teacherForm.cargo} onChange={e => setTeacherForm({...teacherForm, cargo: e.target.value})} />
             </label>
@@ -688,15 +961,9 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
               </label>
             )}
             {teacherForm.estado_actual === 'Baja' && (
-              <>
-                <label>Fecha de Baja
-                  <input type="date" className="input-field" value={teacherForm.baja_fecha} onChange={e => setTeacherForm({...teacherForm, baja_fecha: e.target.value})} />
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem' }}>
-                  <input type="checkbox" checked={teacherForm.excluir_asistencia === 1} onChange={e => setTeacherForm({...teacherForm, excluir_asistencia: e.target.checked ? 1 : 0})} style={{ width: '18px', height: '18px' }} />
-                  Excluir de la asistencia al docente a partir de la fecha de Baja
-                </label>
-              </>
+              <label>Fecha de Baja
+                <input type="date" className="input-field" value={teacherForm.baja_fecha} onChange={e => setTeacherForm({...teacherForm, baja_fecha: e.target.value})} />
+              </label>
             )}
             {(teacherForm.estado_actual === 'Relevado de Funciones' || (teacherForm.estado_actual === 'Tareas Pasivas' && teacherForm.tp_concentracion)) && (
               <label>Institución/Jurisdicción destinada:
@@ -708,19 +975,57 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
                 <span style={{ fontSize: '0.85rem', fontWeight: 'bold', display: 'block', marginBottom: '0.5rem' }}>Opciones de Tareas Pasivas:</span>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}>
-                    <input type="checkbox" checked={teacherForm.tp_transitorias === 1} onChange={e => setTeacherForm({...teacherForm, tp_transitorias: e.target.checked ? 1 : 0})} />
+                    <input 
+                      type="checkbox" 
+                      checked={teacherForm.tp_transitorias === 1} 
+                      disabled={teacherForm.tp_definitivas === 1}
+                      onChange={e => setTeacherForm({...teacherForm, tp_transitorias: e.target.checked ? 1 : 0})} 
+                    />
                     Transitorias
                   </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}>
-                    <input type="checkbox" checked={teacherForm.tp_horario_reducido === 1} onChange={e => setTeacherForm({...teacherForm, tp_horario_reducido: e.target.checked ? 1 : 0})} />
+                    <input 
+                      type="checkbox" 
+                      checked={teacherForm.tp_horario_reducido === 1} 
+                      onChange={e => {
+                        const checked = e.target.checked ? 1 : 0;
+                        setTeacherForm({
+                          ...teacherForm,
+                          tp_horario_reducido: checked,
+                          c_hs_reducidas: checked ? teacherForm.c_hs_reducidas : ''
+                        });
+                      }} 
+                    />
                     Horario Reducido
                   </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}>
-                    <input type="checkbox" checked={teacherForm.tp_definitivas === 1} onChange={e => setTeacherForm({...teacherForm, tp_definitivas: e.target.checked ? 1 : 0})} />
+                    <input 
+                      type="checkbox" 
+                      checked={teacherForm.tp_definitivas === 1} 
+                      onChange={e => {
+                        const checked = e.target.checked ? 1 : 0;
+                        setTeacherForm({
+                          ...teacherForm,
+                          tp_definitivas: checked,
+                          tp_transitorias: checked ? 0 : teacherForm.tp_transitorias
+                        });
+                      }} 
+                    />
                     Definitivas
                   </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}>
-                    <input type="checkbox" checked={teacherForm.tp_concentracion === 1} onChange={e => setTeacherForm({...teacherForm, tp_concentracion: e.target.checked ? 1 : 0})} />
+                    <input 
+                      type="checkbox" 
+                      checked={teacherForm.tp_concentracion === 1} 
+                      onChange={e => {
+                        const checked = e.target.checked ? 1 : 0;
+                        setTeacherForm({
+                          ...teacherForm,
+                          tp_concentracion: checked,
+                          institucion_destino: checked ? teacherForm.institucion_destino : ''
+                        });
+                      }} 
+                    />
                     Concentración Horaria
                   </label>
                 </div>
@@ -766,6 +1071,7 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
                     id: selectedTeacher.id, dni: selectedTeacher.dni, apellidos_nombres: selectedTeacher.apellidos_nombres,
                     cargo: selectedTeacher.cargo, estado_actual: selectedTeacher.estado_actual,
                     codigo_cargo: selectedTeacher.codigo_cargo, c_hs: selectedTeacher.c_hs,
+                    c_hs_reducidas: selectedTeacher.c_hs_reducidas || '',
                     turno: selectedTeacher.turno, alta_fecha: selectedTeacher.alta_fecha,
                     baja_fecha: selectedTeacher.baja_fecha || '', 
                     reintegro_fecha: selectedTeacher.reintegro_fecha || '',
@@ -790,7 +1096,6 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
             <div className="profile-card main-info">
               {loadingHistory ? (
                 <div style={{ width: '100%' }}>
-                  <Skeleton type="text" style={{ width: '100px', height: '100px', borderRadius: '30px', margin: '0 auto 1.5rem' }} />
                   <Skeleton type="text" style={{ width: '80%', height: '2rem', margin: '0 auto 1rem' }} />
                   <div className="info-grid">
                     {[1,2,3,4,5,6].map(i => <div key={i}><Skeleton type="text" style={{ width: '40%', marginBottom: '0.5rem' }} /><Skeleton type="text" style={{ width: '90%' }} /></div>)}
@@ -798,9 +1103,6 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
                 </div>
               ) : (
                 <>
-                  <div className="profile-avatar">
-                    <User size={40} />
-                  </div>
                   <div className="profile-title">
                     {isEditingProfile ? (
                       <input 
@@ -813,7 +1115,12 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
                     ) : (
                       <h2>{selectedTeacher.apellidos_nombres}</h2>
                     )}
-                    <span className="badge-status">{selectedTeacher.estado_actual}</span>
+                    <span 
+                      className="badge-status" 
+                      style={getBadgeStatusStyle(isEditingProfile ? editForm : selectedTeacher)}
+                    >
+                      {getBadgeStatusText(isEditingProfile ? editForm : selectedTeacher)}
+                    </span>
                     {getExceededLicenses(selectedTeacher.id).map(exc => (
                       <div key={exc.codigo} style={{ 
                         marginTop: '0.8rem', marginBottom: '1.5rem', padding: '0.8rem', borderRadius: '8px', 
@@ -824,11 +1131,6 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
                         Este docente ha superado el límite de {exc.limite} días para la licencia {exc.nombre}. Regularizar su situación.
                       </div>
                     ))}
-                    {['Relevado de Funciones', 'Tareas Pasivas'].includes(selectedTeacher.estado_actual) && (
-                      <div style={{ fontSize: '0.85rem', color: '#dc2626', fontWeight: 'bold', marginTop: '0.5rem' }}>
-                        {getStatusDescription(selectedTeacher)}
-                      </div>
-                    )}
                   </div>
                   
                   <div className="info-grid">
@@ -843,7 +1145,28 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
                     <div className="info-item">
                       <label>Estado Actual</label>
                       {isEditingProfile ? (
-                        <select className="input-field compact" value={editForm.estado_actual} onChange={e => setEditForm({...editForm, estado_actual: e.target.value})}>
+                        <select className="input-field compact" value={editForm.estado_actual} onChange={e => {
+                          const nextState = e.target.value;
+                          const updates = { estado_actual: nextState };
+                          if (nextState !== 'Baja') {
+                            updates.baja_fecha = '';
+                            updates.excluir_asistencia = 0;
+                          }
+                          if (nextState !== 'Baja y Reintegro') {
+                            updates.reintegro_fecha = '';
+                          }
+                          if (nextState !== 'Tareas Pasivas') {
+                            updates.tp_transitorias = 0;
+                            updates.tp_horario_reducido = 0;
+                            updates.tp_definitivas = 0;
+                            updates.tp_concentracion = 0;
+                            updates.c_hs_reducidas = '';
+                          }
+                          if (nextState !== 'Relevado de Funciones' && nextState !== 'Tareas Pasivas') {
+                            updates.institucion_destino = '';
+                          }
+                          setEditForm({ ...editForm, ...updates });
+                        }}>
                           <option value="Activo en el cargo">Activo en el cargo</option>
                           <option value="Baja y Reintegro">Baja y Reintegro</option>
                           <option value="Baja">Baja</option>
@@ -867,30 +1190,14 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
                     )}
 
                     {(editForm.estado_actual === 'Baja' || selectedTeacher.estado_actual === 'Baja') && (
-                      <>
-                        <div className="info-item">
-                          <label>Fecha de Baja</label>
-                          {isEditingProfile ? (
-                            <input type="date" className="input-field compact" value={editForm.baja_fecha} onChange={e => setEditForm({...editForm, baja_fecha: e.target.value})} />
-                          ) : (
-                            <div className="value">{formatDate(selectedTeacher.baja_fecha) || '-'}</div>
-                          )}
-                        </div>
-                        <div className="info-item" style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          {isEditingProfile ? (
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', textTransform: 'none', fontSize: '0.9rem', cursor: 'pointer' }}>
-                              <input type="checkbox" checked={editForm.excluir_asistencia === 1} onChange={e => setEditForm({...editForm, excluir_asistencia: e.target.checked ? 1 : 0})} style={{ width: '18px', height: '18px' }} />
-                              Excluir de la asistencia al docente a partir de la fecha de Baja
-                            </label>
-                          ) : (
-                            selectedTeacher.excluir_asistencia === 1 && (
-                              <div className="value" style={{ color: '#dc2626', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                <ShieldAlert size={14} /> Excluido de asistencia desde la baja
-                              </div>
-                            )
-                          )}
-                        </div>
-                      </>
+                      <div className="info-item">
+                        <label>Fecha de Baja</label>
+                        {isEditingProfile ? (
+                          <input type="date" className="input-field compact" value={editForm.baja_fecha} onChange={e => setEditForm({...editForm, baja_fecha: e.target.value})} />
+                        ) : (
+                          <div className="value">{formatDate(selectedTeacher.baja_fecha) || '-'}</div>
+                        )}
+                      </div>
                     )}
 
                     {(isEditingProfile ? editForm.estado_actual : selectedTeacher.estado_actual) === 'Relevado de Funciones' && (
@@ -904,46 +1211,71 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
                       </div>
                     )}
 
-                    {(isEditingProfile ? editForm.estado_actual : selectedTeacher.estado_actual) === 'Tareas Pasivas' && (
+                    {isEditingProfile && editForm.estado_actual === 'Tareas Pasivas' && (
                       <div className="info-item" style={{ gridColumn: 'span 2', background: 'rgba(220, 38, 38, 0.05)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(220, 38, 38, 0.1)' }}>
                         <label style={{ color: '#dc2626', fontWeight: 'bold', marginBottom: '8px' }}>Opciones de Tareas Pasivas:</label>
-                        {isEditingProfile ? (
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', textTransform: 'none' }}>
-                              <input type="checkbox" checked={editForm.tp_transitorias === 1} onChange={e => setEditForm({...editForm, tp_transitorias: e.target.checked ? 1 : 0})} />
-                              Transitorias
-                            </label>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', textTransform: 'none' }}>
-                              <input type="checkbox" checked={editForm.tp_horario_reducido === 1} onChange={e => setEditForm({...editForm, tp_horario_reducido: e.target.checked ? 1 : 0})} />
-                              Horario Reducido
-                            </label>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', textTransform: 'none' }}>
-                              <input type="checkbox" checked={editForm.tp_definitivas === 1} onChange={e => setEditForm({...editForm, tp_definitivas: e.target.checked ? 1 : 0})} />
-                              Definitivas
-                            </label>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', textTransform: 'none' }}>
-                              <input type="checkbox" checked={editForm.tp_concentracion === 1} onChange={e => setEditForm({...editForm, tp_concentracion: e.target.checked ? 1 : 0})} />
-                              Concentración Horaria
-                            </label>
-                            {editForm.tp_concentracion === 1 && (
-                              <div style={{ gridColumn: 'span 2', marginTop: '5px' }}>
-                                <label style={{ fontSize: '0.75rem' }}>Institución Destino (C.H.):</label>
-                                <input type="text" className="input-field compact" value={editForm.institucion_destino} onChange={e => setEditForm({...editForm, institucion_destino: e.target.value})} />
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                            {selectedTeacher.tp_definitivas === 1 && <span className="badge" style={{ background: '#dc2626', color: 'white' }}>Definitivas</span>}
-                            {selectedTeacher.tp_transitorias === 1 && <span className="badge" style={{ background: '#ef4444', color: 'white' }}>Transitorias</span>}
-                            {selectedTeacher.tp_horario_reducido === 1 && <span className="badge" style={{ background: '#f87171', color: 'white' }}>Reducción Horaria</span>}
-                            {selectedTeacher.tp_concentracion === 1 && (
-                              <span className="badge" style={{ background: '#991b1b', color: 'white' }}>
-                                Concentración Horaria: {selectedTeacher.institucion_destino || 'Sin definir'}
-                              </span>
-                            )}
-                          </div>
-                        )}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', textTransform: 'none' }}>
+                            <input 
+                              type="checkbox" 
+                              checked={editForm.tp_transitorias === 1} 
+                              disabled={editForm.tp_definitivas === 1}
+                              onChange={e => setEditForm({...editForm, tp_transitorias: e.target.checked ? 1 : 0})} 
+                            />
+                            Transitorias
+                          </label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', textTransform: 'none' }}>
+                            <input 
+                              type="checkbox" 
+                              checked={editForm.tp_horario_reducido === 1} 
+                              onChange={e => {
+                                const checked = e.target.checked ? 1 : 0;
+                                setEditForm({
+                                  ...editForm,
+                                  tp_horario_reducido: checked,
+                                  c_hs_reducidas: checked ? editForm.c_hs_reducidas : ''
+                                });
+                              }} 
+                            />
+                            Horario Reducido
+                          </label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', textTransform: 'none' }}>
+                            <input 
+                              type="checkbox" 
+                              checked={editForm.tp_definitivas === 1} 
+                              onChange={e => {
+                                const checked = e.target.checked ? 1 : 0;
+                                setEditForm({
+                                  ...editForm,
+                                  tp_definitivas: checked,
+                                  tp_transitorias: checked ? 0 : editForm.tp_transitorias
+                                });
+                              }} 
+                            />
+                            Definitivas
+                          </label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', textTransform: 'none' }}>
+                            <input 
+                              type="checkbox" 
+                              checked={editForm.tp_concentracion === 1} 
+                              onChange={e => {
+                                const checked = e.target.checked ? 1 : 0;
+                                setEditForm({
+                                  ...editForm,
+                                  tp_concentracion: checked,
+                                  institucion_destino: checked ? editForm.institucion_destino : ''
+                                });
+                              }} 
+                            />
+                            Concentración Horaria
+                          </label>
+                          {editForm.tp_concentracion === 1 && (
+                            <div style={{ gridColumn: 'span 2', marginTop: '5px' }}>
+                              <label style={{ fontSize: '0.75rem' }}>Institución Destino (C.H.):</label>
+                              <input type="text" className="input-field compact" value={editForm.institucion_destino} onChange={e => setEditForm({...editForm, institucion_destino: e.target.value})} />
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
 
@@ -972,13 +1304,27 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
                         <div className="value">{selectedTeacher.codigo_cargo || '-'}</div>
                       )}
                     </div>
-                    <div className="info-item">
-                      <label>C/ HS</label>
-                      {isEditingProfile ? (
-                        <input type="text" className="input-field compact" value={editForm.c_hs} onChange={e => setEditForm({...editForm, c_hs: e.target.value})} />
-                      ) : (
-                        <div className="value">{selectedTeacher.c_hs || '-'}</div>
-                      )}
+                    <div className="info-item" style={{ gridColumn: (isEditingProfile ? editForm.tp_horario_reducido : selectedTeacher.tp_horario_reducido) === 1 ? 'span 2' : 'span 1' }}>
+                      <div style={{ display: 'flex', gap: '1.5rem', width: '100%' }}>
+                        <div style={{ flex: 1 }}>
+                          <label>C/ HS</label>
+                          {isEditingProfile ? (
+                            <input type="text" className="input-field compact" value={editForm.c_hs} onChange={e => setEditForm({...editForm, c_hs: e.target.value})} />
+                          ) : (
+                            <div className="value">{selectedTeacher.c_hs || '-'}</div>
+                          )}
+                        </div>
+                        {(isEditingProfile ? editForm.tp_horario_reducido : selectedTeacher.tp_horario_reducido) === 1 && (
+                          <div style={{ flex: 1 }}>
+                            <label>C/ HS (Reducidas)</label>
+                            {isEditingProfile ? (
+                              <input type="text" className="input-field compact" value={editForm.c_hs_reducidas || ''} onChange={e => setEditForm({...editForm, c_hs_reducidas: e.target.value})} />
+                            ) : (
+                              <div className="value">{selectedTeacher.c_hs_reducidas || '-'}</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div className="info-item">
                       <label>Turno</label>
@@ -1238,8 +1584,9 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
         <button className="btn btn-primary" onClick={() => { 
           setTeacherForm({ 
             id: null, dni: '', apellidos_nombres: '', cargo: '', 
-            estado_actual: 'Activo en el cargo', codigo_cargo: '', c_hs: '', turno: '', alta_fecha: '',
-            baja_fecha: '', reintegro_fecha: '', excluir_asistencia: 0, num_disposicion: '', adjunto_url: '' 
+            estado_actual: 'Activo en el cargo', codigo_cargo: '', c_hs: '', c_hs_reducidas: '', turno: '', alta_fecha: '',
+            baja_fecha: '', reintegro_fecha: '', excluir_asistencia: 0, num_disposicion: '', adjunto_url: '',
+            institucion_destino: '', tp_transitorias: 0, tp_horario_reducido: 0, tp_definitivas: 0, tp_concentracion: 0
           }); 
           setShowTeacherForm(true); 
         }}>
@@ -1254,10 +1601,19 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
           <Printer size={18} />
         </button>
 
-        <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.85rem', cursor: 'pointer', background: 'rgba(255,255,255,0.1)', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
-          <input type="checkbox" checked={showWeekends} onChange={e => setShowWeekends(e.target.checked)} />
-          Mostrar Fines de Semana
-        </label>
+        <button 
+          className="btn" 
+          onClick={() => setShowWeekends(!showWeekends)} 
+          style={{ 
+            background: showWeekends ? 'rgba(0, 120, 215, 0.15)' : 'rgba(255,255,255,0.1)', 
+            color: showWeekends ? '#0078d7' : 'inherit', 
+            border: `1px solid ${showWeekends ? 'rgba(0, 120, 215, 0.3)' : 'var(--glass-border)'}`,
+            padding: '8px 12px'
+          }} 
+          title={showWeekends ? "Ocultar Fines de Semana" : "Mostrar Fines de Semana"}
+        >
+          {showWeekends ? <Eye size={18} /> : <EyeOff size={18} />}
+        </button>
 
         <div style={{ marginLeft: 'auto' }}>
           <SaveStatusButton 
@@ -1288,19 +1644,54 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
         <table className="attendance-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
           <thead>
             <tr>
-              <th style={{ position: 'sticky', left: 0, zIndex: 20, minWidth: '45px', maxWidth: '45px', background: '#0078d7', borderRight: '1px solid rgba(255,255,255,0.2)', borderBottom: '1px solid rgba(255,255,255,0.2)' }}>N°</th>
-              <th style={{ position: 'sticky', left: '45px', zIndex: 20, background: '#0078d7', borderRight: '1px solid rgba(255,255,255,0.2)', borderBottom: '1px solid rgba(255,255,255,0.2)', boxShadow: '2px 0 5px rgba(0,0,0,0.2)' }}>Docente</th>
+              <th rowSpan={2} style={{ position: 'sticky', left: 0, zIndex: 20, minWidth: '45px', maxWidth: '45px', background: '#0078d7', borderRight: '1px solid rgba(255,255,255,0.2)', borderBottom: '1px solid rgba(255,255,255,0.2)', verticalAlign: 'middle' }}>N°</th>
+              
+              {/* Fecha de Grabado header */}
+              <th style={{ 
+                position: 'sticky', left: '45px', zIndex: 20, 
+                background: '#0078d7', 
+                borderRight: '1px solid rgba(255,255,255,0.2)', 
+                borderBottom: '1px solid rgba(255,255,255,0.15)',
+                boxShadow: '2px 0 5px rgba(0,0,0,0.2)',
+                padding: '6px 8px 4px 8px',
+                textAlign: 'center',
+                minWidth: '220px',
+                verticalAlign: 'middle'
+              }}>
+                <div style={{ fontSize: '0.6rem', fontWeight: '800', letterSpacing: '0.05em', color: 'white', marginBottom: '4px' }}>FECHA DE GRABADO</div>
+                <input 
+                  type="text" 
+                  placeholder="Ej: 30 de Mayo 2026"
+                  value={fechaGrabadoLocal}
+                  onChange={(e) => setFechaGrabadoLocal(e.target.value)}
+                  onBlur={(e) => saveFechaGrabado(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '3px 6px',
+                    fontSize: '0.75rem',
+                    border: 'none',
+                    borderRadius: '4px',
+                    background: 'white',
+                    color: '#333',
+                    textAlign: 'center',
+                    fontWeight: 'bold'
+                  }}
+                />
+              </th>
+
               {days.filter(d => showWeekends || !d.isWeekend).map(d => {
                 const isSuspended = suspendedDays.includes(d.date);
                 return (
                 <th 
                   key={d.day} 
+                  rowSpan={2}
                   className={`day-header ${d.isWeekend ? 'weekend' : ''}`} 
                   style={{ 
                     minWidth: '45px', maxWidth: '45px', textAlign: 'center', 
                     background: isSuspended ? 'rgb(106, 189, 255)' : '',
                     borderLeft: d.dayName === 'LU' ? '2.5px solid white' : '0.5px solid rgba(255,255,255,0.1)',
-                    borderRight: d.dayName === 'VIE' ? '2.5px solid white' : '0.5px solid rgba(255,255,255,0.1)'
+                    borderRight: d.dayName === 'VIE' ? '2.5px solid white' : '0.5px solid rgba(255,255,255,0.1)',
+                    verticalAlign: 'middle'
                   }}
                 >
                   <div style={{ fontSize: '0.6rem', opacity: 0.7 }}>{d.dayName}</div>
@@ -1308,11 +1699,29 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
                   <input type="checkbox" checked={suspendedDays.includes(d.date)} onChange={() => toggleSuspendedDay(d.date)} title="Suspender Día" style={{ transform: 'scale(0.8)', margin: '2px 0 0 0' }} />
                 </th>
               ); })}
-              <th className="ui-vertical-header">Total Oblig.</th>
-              <th className="ui-vertical-header">Total Días Asis.</th>
-              <th className="ui-vertical-header">Oblig. a Deducir</th>
-              <th className="ui-vertical-header">Días a Deducir</th>
-              <th>Acciones</th>
+              <th rowSpan={2} className="ui-vertical-header" style={{ verticalAlign: 'middle' }}>Total Oblig.</th>
+              <th rowSpan={2} className="ui-vertical-header" style={{ verticalAlign: 'middle' }}>Total Días Asis.</th>
+              <th rowSpan={2} className="ui-vertical-header" style={{ verticalAlign: 'middle' }}>Oblig. a Deducir</th>
+              <th rowSpan={2} className="ui-vertical-header" style={{ verticalAlign: 'middle' }}>Días a Deducir</th>
+              <th rowSpan={2} style={{ verticalAlign: 'middle' }}>Acciones</th>
+            </tr>
+            <tr>
+              <th style={{ 
+                position: 'sticky', left: '45px', zIndex: 20, 
+                background: '#0078d7', 
+                borderRight: '1px solid rgba(255,255,255,0.2)', 
+                borderBottom: '1px solid rgba(255,255,255,0.2)', 
+                boxShadow: '2px 0 5px rgba(0,0,0,0.2)',
+                padding: '6px',
+                fontSize: '0.8rem',
+                fontWeight: 'bold',
+                color: 'white',
+                textAlign: 'center',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em'
+              }}>
+                DOCENTE
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -1322,7 +1731,7 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
               <tr><td colSpan={days.length + 7} style={{ textAlign: 'center', padding: '2rem', opacity: 0.5 }}>No se encontraron docentes.</td></tr>
             ) : (
               filteredTeachers.map((teacher, index) => {
-                const rowBg = teacher.estado_actual === 'Baja' ? '#eff6ff' : teacher.estado_actual === 'Baja y Reintegro' ? '#fef08a' : 'white';
+                const rowBg = 'white';
                 return (
                 <tr key={teacher.id} style={{ background: rowBg }}>
                   <td style={{ position: 'sticky', left: 0, zIndex: 15, background: rowBg, textAlign: 'center', fontWeight: 'bold', borderRight: '1px solid rgba(0,0,0,0.05)', borderBottom: '1px solid rgba(0,0,0,0.05)', minWidth: '45px', maxWidth: '45px' }}>{index + 1}</td>
@@ -1346,7 +1755,15 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
                   {days.filter(d => showWeekends || !d.isWeekend).map(d => {
                     const key = `${teacher.id}_${d.date}`;
                     const effVal = getEffectiveAttendance(teacher, d.date);
-                    const isReadOnly = teacher.estado_actual === 'Relevado de Funciones' || (teacher.estado_actual === 'Tareas Pasivas' && teacher.tp_concentracion);
+                    
+                    const isBeforeAlta = teacher.alta_fecha ? (d.date < teacher.alta_fecha) : false;
+                    const isAfterBaja = (teacher.estado_actual === 'Baja' && teacher.baja_fecha) ? (d.date > teacher.baja_fecha) : false;
+                    
+                    const isReadOnly = teacher.estado_actual === 'Relevado de Funciones' || 
+                                       (teacher.estado_actual === 'Tareas Pasivas' && teacher.tp_concentracion) ||
+                                       isBeforeAlta ||
+                                       isAfterBaja;
+                                       
                     const isSuspended = suspendedDays.includes(d.date);
                     return (
                       <td 
@@ -1361,16 +1778,23 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
                         {!isSuspended && (
                           <input 
                             list="attendance-codes"
-                            className="attendance-input" 
+                            className={`attendance-input ${(isBeforeAlta || isAfterBaja) ? 'val-blocked' : ''}`} 
                             value={effVal} 
                             onChange={(e) => !isReadOnly && handleAttendanceChange(teacher.id, d.date, e.target.value)}
                             onBlur={(e) => !isReadOnly && handleBlur(teacher.id, d.date, e.target.value)}
-                            readOnly={isReadOnly}
+                            readOnly={isReadOnly && !(isBeforeAlta || isAfterBaja)}
+                            disabled={isBeforeAlta || isAfterBaja}
                             style={{ 
-                              padding: '2px', fontSize: isReadOnly ? '0.55rem' : '0.7rem', width: '40px', textAlign: 'center', 
-                              borderRadius: '4px', border: isReadOnly ? 'none' : '1px solid #ccc', 
-                              color: isReadOnly ? 'red' : 'black', fontWeight: isReadOnly ? 'bold' : 'normal',
-                              background: isReadOnly ? 'transparent' : 'white' 
+                              padding: '2px', 
+                              fontSize: isReadOnly ? '0.55rem' : '0.7rem', 
+                              width: '40px', 
+                              textAlign: 'center', 
+                              borderRadius: '4px', 
+                              border: isReadOnly ? 'none' : '1px solid #ccc', 
+                              color: (isBeforeAlta || isAfterBaja) ? '#94a3b8' : (isReadOnly ? 'red' : 'black'), 
+                              fontWeight: isReadOnly ? 'bold' : 'normal',
+                              background: (isBeforeAlta || isAfterBaja) ? '#f1f5f9' : (isReadOnly ? 'transparent' : 'white'),
+                              cursor: (isBeforeAlta || isAfterBaja) ? 'not-allowed' : 'inherit'
                             }}
                           />
                         )}
@@ -1388,12 +1812,18 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile }) => {
                           id: teacher.id, dni: teacher.dni, apellidos_nombres: teacher.apellidos_nombres,
                           cargo: teacher.cargo, estado_actual: teacher.estado_actual,
                           codigo_cargo: teacher.codigo_cargo, c_hs: teacher.c_hs,
+                          c_hs_reducidas: teacher.c_hs_reducidas || '',
                           turno: teacher.turno, alta_fecha: teacher.alta_fecha,
                           baja_fecha: teacher.baja_fecha || '', 
                           reintegro_fecha: teacher.reintegro_fecha || '',
                           excluir_asistencia: teacher.excluir_asistencia || 0,
                           num_disposicion: teacher.num_disposicion || '',
-                          adjunto_url: teacher.adjunto_url || ''
+                          adjunto_url: teacher.adjunto_url || '',
+                          institucion_destino: teacher.institucion_destino || '',
+                          tp_transitorias: teacher.tp_transitorias || 0,
+                          tp_horario_reducido: teacher.tp_horario_reducido || 0,
+                          tp_definitivas: teacher.tp_definitivas || 0,
+                          tp_concentracion: teacher.tp_concentracion || 0
                         }); 
                         setShowTeacherForm(true); 
                       }}><Edit size={14}/></button>

@@ -8,6 +8,7 @@ const Dashboard = ({ user, onLogout, onUpdateSelfPassword, isMobile, showToast, 
   const [data, setData] = useState({ users: [], config: {} });
   const [loading, setLoading] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isTeacherDetailOpen, setIsTeacherDetailOpen] = useState(false);
 
   // Estados para SettingsPanel
   const emptyUser = { id: null, nombre: '', username: '', password: '', rol: 'preceptor' };
@@ -125,33 +126,12 @@ const Dashboard = ({ user, onLogout, onUpdateSelfPassword, isMobile, showToast, 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       
-      {/* Editor Modal Simple Integrado */}
-      {editingUserId && (
-        <div className="modal-overlay" onClick={() => setEditingUserId(null)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ padding: '2rem', borderRadius: '12px', minWidth: '300px' }}>
-            <h3 style={{ marginBottom: '1.5rem', color: 'var(--primary)' }}>{editingUserId === 'new' ? 'Nuevo Usuario' : 'Editar Usuario'}</h3>
-            <form className="stack-form" onSubmit={saveUserForm}>
-              <label>Usuario (Login)<input className="input-field" value={userForm.username} onChange={e => setUserForm({...userForm, username: e.target.value})} required/></label>
-              <label>Rol
-                <select className="input-field" value={userForm.rol} onChange={e => setUserForm({...userForm, rol: e.target.value})}>
-                  <option value="admin">Administrador</option>
-                  <option value="profesor">Profesor (Lector)</option>
-                </select>
-              </label>
-              <label>{editingUserId === 'new' ? 'Contraseña' : 'Nueva Contraseña (opcional)'}<input className="input-field" type="password" value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} required={editingUserId === 'new'}/></label>
-              <div style={{ display: 'flex', gap: '10px', marginTop: '1rem' }}>
-                <button type="button" className="btn" style={{ background: 'rgba(255,255,255,0.1)' }} onClick={() => setEditingUserId(null)}>Cancelar</button>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Guardar</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+
 
       {/* Header */}
-      <header className="panel-toolbar" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1rem', marginBottom: '1rem' }}>
+      <header className="panel-toolbar" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem', marginBottom: '0.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          {isMobile && <button className="icon-btn" onClick={() => setIsMenuOpen(true)}><Menu size={20} /></button>}
+          {isMobile && !isTeacherDetailOpen && <button className="icon-btn" onClick={() => setIsMenuOpen(true)}><Menu size={20} /></button>}
           <div>
             <h1 style={{ color: 'var(--primary)', fontSize: '1.4rem' }}>{schoolName}</h1>
             <p style={{ opacity: 0.6, fontSize: '0.8rem', marginTop: '2px' }}>Sistema de Asistencia</p>
@@ -173,7 +153,7 @@ const Dashboard = ({ user, onLogout, onUpdateSelfPassword, isMobile, showToast, 
       </header>
 
       {/* Navegación Desktop */}
-      {!isMobile && (
+      {!isMobile && !isTeacherDetailOpen && (
         <div className="tab-nav">
           {tabs.filter(t => !t.adminOnly || user.rol === 'admin').map(tab => (
             <button 
@@ -215,17 +195,29 @@ const Dashboard = ({ user, onLogout, onUpdateSelfPassword, isMobile, showToast, 
           <div style={{ textAlign: 'center', padding: '3rem', opacity: 0.5 }}>Cargando datos del sistema...</div>
         ) : (
           <>
-            {activeTab === 'asistencia' && <AttendancePanel user={user} data={data} apiService={apiService} showToast={showToast} isMobile={isMobile} />}
+            {activeTab === 'asistencia' && (
+              <AttendancePanel 
+                user={user} 
+                data={data} 
+                apiService={apiService} 
+                showToast={showToast} 
+                isMobile={isMobile} 
+                onTeacherDetailToggle={setIsTeacherDetailOpen}
+              />
+            )}
             {activeTab === 'settings' && user.rol === 'admin' && (
               <SettingsPanel 
                 user={user} 
                 data={data} 
                 isMobile={isMobile} 
+                editingUserId={editingUserId}
                 setEditingUserId={setEditingUserId}
+                userForm={userForm}
                 setUserForm={setUserForm}
                 emptyUser={emptyUser}
                 startEditUser={startEditUser}
                 deleteUser={deleteUser}
+                saveUserForm={saveUserForm}
                 handleUpdateMobileLogin={handleUpdateMobileLogin}
                 handleUpdateSetting={handleUpdateSetting}
                 handleLicenciaAction={handleLicenciaAction}

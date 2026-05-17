@@ -45,16 +45,16 @@ export async function onRequestPost({ env, request }) {
     const body = await request.json();
     
     if (action === 'create_teacher') {
-      const { dni, apellidos_nombres, cargo, alta_fecha, estado_actual, codigo_cargo, c_hs, turno, baja_fecha, reintegro_fecha, excluir_asistencia, num_disposicion, adjunto_url, institucion_destino, tp_transitorias, tp_horario_reducido, tp_definitivas, tp_concentracion } = body;
-      const res = await env.DB.prepare("INSERT INTO docentes (dni, apellidos_nombres, cargo, alta_fecha, estado_actual, codigo_cargo, c_hs, turno, baja_fecha, reintegro_fecha, excluir_asistencia, num_disposicion, adjunto_url, institucion_destino, tp_transitorias, tp_horario_reducido, tp_definitivas, tp_concentracion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id")
-        .bind(dni, apellidos_nombres, cargo, alta_fecha, estado_actual || 'Activo en el cargo', codigo_cargo, c_hs, turno, baja_fecha, reintegro_fecha, excluir_asistencia || 0, num_disposicion, adjunto_url, institucion_destino, tp_transitorias || 0, tp_horario_reducido || 0, tp_definitivas || 0, tp_concentracion || 0).first();
+      const { dni, apellidos_nombres, cargo, alta_fecha, estado_actual, codigo_cargo, c_hs, c_hs_reducidas, turno, baja_fecha, reintegro_fecha, excluir_asistencia, num_disposicion, adjunto_url, institucion_destino, tp_transitorias, tp_horario_reducido, tp_definitivas, tp_concentracion } = body;
+      const res = await env.DB.prepare("INSERT INTO docentes (dni, apellidos_nombres, cargo, alta_fecha, estado_actual, codigo_cargo, c_hs, c_hs_reducidas, turno, baja_fecha, reintegro_fecha, excluir_asistencia, num_disposicion, adjunto_url, institucion_destino, tp_transitorias, tp_horario_reducido, tp_definitivas, tp_concentracion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id")
+        .bind(dni, apellidos_nombres, cargo, alta_fecha, estado_actual || 'Activo en el cargo', codigo_cargo, c_hs, c_hs_reducidas, turno, baja_fecha, reintegro_fecha, excluir_asistencia || 0, num_disposicion, adjunto_url, institucion_destino, tp_transitorias || 0, tp_horario_reducido || 0, tp_definitivas || 0, tp_concentracion || 0).first();
       return json({ success: true, id: res.id });
     }
     
     if (action === 'update_teacher') {
-      const { id, dni, apellidos_nombres, cargo, alta_fecha, estado_actual, codigo_cargo, c_hs, turno, baja_fecha, reintegro_fecha, excluir_asistencia, num_disposicion, adjunto_url, institucion_destino, tp_transitorias, tp_horario_reducido, tp_definitivas, tp_concentracion } = body;
-      await env.DB.prepare("UPDATE docentes SET dni = ?, apellidos_nombres = ?, cargo = ?, alta_fecha = ?, estado_actual = ?, codigo_cargo = ?, c_hs = ?, turno = ?, baja_fecha = ?, reintegro_fecha = ?, excluir_asistencia = ?, num_disposicion = ?, adjunto_url = ?, institucion_destino = ?, tp_transitorias = ?, tp_horario_reducido = ?, tp_definitivas = ?, tp_concentracion = ? WHERE id = ?")
-        .bind(dni, apellidos_nombres, cargo, alta_fecha, estado_actual || 'Activo en el cargo', codigo_cargo, c_hs, turno, baja_fecha, reintegro_fecha, excluir_asistencia || 0, num_disposicion, adjunto_url, institucion_destino, tp_transitorias || 0, tp_horario_reducido || 0, tp_definitivas || 0, tp_concentracion || 0, id).run();
+      const { id, dni, apellidos_nombres, cargo, alta_fecha, estado_actual, codigo_cargo, c_hs, c_hs_reducidas, turno, baja_fecha, reintegro_fecha, excluir_asistencia, num_disposicion, adjunto_url, institucion_destino, tp_transitorias, tp_horario_reducido, tp_definitivas, tp_concentracion } = body;
+      await env.DB.prepare("UPDATE docentes SET dni = ?, apellidos_nombres = ?, cargo = ?, alta_fecha = ?, estado_actual = ?, codigo_cargo = ?, c_hs = ?, c_hs_reducidas = ?, turno = ?, baja_fecha = ?, reintegro_fecha = ?, excluir_asistencia = ?, num_disposicion = ?, adjunto_url = ?, institucion_destino = ?, tp_transitorias = ?, tp_horario_reducido = ?, tp_definitivas = ?, tp_concentracion = ? WHERE id = ?")
+        .bind(dni, apellidos_nombres, cargo, alta_fecha, estado_actual || 'Activo en el cargo', codigo_cargo, c_hs, c_hs_reducidas, turno, baja_fecha, reintegro_fecha, excluir_asistencia || 0, num_disposicion, adjunto_url, institucion_destino, tp_transitorias || 0, tp_horario_reducido || 0, tp_definitivas || 0, tp_concentracion || 0, id).run();
       return json({ success: true });
     }
 

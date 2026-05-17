@@ -5,14 +5,15 @@ import SaveStatusButton from '../UI/SaveStatusButton';
 
 const SettingsPanel = ({
   user, data, isMobile,
-  setEditingUserId,
-  setUserForm, emptyUser,
-  startEditUser, deleteUser,
+  editingUserId, setEditingUserId,
+  userForm, setUserForm, emptyUser,
+  startEditUser, deleteUser, saveUserForm,
   handleUpdateMobileLogin,
   handleUpdateSetting,
   handleLicenciaAction
 }) => {
   const [showLicenseModal, setShowLicenseModal] = React.useState(false);
+  const [showUserModal, setShowUserModal] = React.useState(false);
   const [licenseSearch, setLicenseSearch] = React.useState('');
   const [editingLicencia, setEditingLicencia] = React.useState(null); // { id, codigo, descripcion, limite_dias, larga_duracion } o 'new'
   const [licenciaForm, setLicenciaForm] = React.useState({ codigo: '', descripcion: '', limite_dias: '', larga_duracion: 0 });
@@ -186,63 +187,139 @@ const SettingsPanel = ({
         </Modal>
       )}
 
-      <section className="management-card" style={{ display: 'flex', flexDirection: 'column' }}>
-        <div className="section-title"><Users size={16} /><h2>Gestión de Usuarios</h2></div>
-        <div className="section-toolbar-left" style={{ marginBottom: '1.2rem' }}>
-          <button className="btn btn-primary" type="button" onClick={() => { setEditingUserId('new'); setUserForm({ ...emptyUser, rol: 'profesor' }); }}>
-            <Plus size={16} /> Nuevo Usuario
-          </button>
-        </div>
-        <div style={{ marginBottom: '1rem' }}>
-          <input
-            type="text"
-            className="input-field"
-            placeholder="Buscar por nombre, usuario o rol..." 
-            value={userSearch}
-            onChange={(e) => { setUserSearch(e.target.value); setCurrentPage(1); }}
-          />
-        </div>
-        <div className="student-list" style={{ flex: 1, maxHeight: '450px', overflowY: 'auto' }}>
-          {(() => {
-            const filtered = (data.users || []).filter(u => {
-              const lowerSearch = userSearch.toLowerCase();
-              if (u.username?.toLowerCase().includes(lowerSearch)) return true;
-              if (u.rol?.toLowerCase().replace(/_/g, ' ').includes(lowerSearch)) return true;
-              return false;
-            });
-            const totalPages = Math.ceil(filtered.length / usersPerPage);
-            const paged = filtered.slice((currentPage - 1) * usersPerPage, currentPage * usersPerPage);
-
-            return (
+      {/* Modal de Gestión de Usuarios */}
+      {showUserModal && (
+        <Modal title="Gestión de Cuentas de Usuarios" onClose={() => { setShowUserModal(false); setEditingUserId(null); }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1rem' }}>
+            
+            {editingUserId ? (
+              <div style={{ background: 'rgba(255,255,255,0.05)', padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--primary)' }}>
+                <h3 style={{ fontSize: '1rem', marginBottom: '1rem' }}>{editingUserId === 'new' ? 'Nuevo Usuario' : 'Editar Usuario'}</h3>
+                <form className="stack-form" onSubmit={(e) => { e.preventDefault(); saveUserForm(); }} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <label style={{ fontSize: '0.85rem' }}>Usuario (Login)
+                    <input 
+                      type="text" className="input-field" placeholder="Ej: maria.gonzalez..." 
+                      value={userForm.username} onChange={e => setUserForm({...userForm, username: e.target.value})} 
+                      required
+                    />
+                  </label>
+                  <label style={{ fontSize: '0.85rem' }}>Rol
+                    <select className="input-field" value={userForm.rol} onChange={e => setUserForm({...userForm, rol: e.target.value})}>
+                      <option value="admin">Administrador</option>
+                      <option value="profesor">Profesor (Lector)</option>
+                    </select>
+                  </label>
+                  <label style={{ fontSize: '0.85rem' }}>{editingUserId === 'new' ? 'Contraseña' : 'Nueva Contraseña (opcional)'}
+                    <input 
+                      type="password" className="input-field" placeholder={editingUserId === 'new' ? 'Escribe la contraseña...' : 'Dejar en blanco para no cambiar...'} 
+                      value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} 
+                      required={editingUserId === 'new'}
+                    />
+                  </label>
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '0.5rem' }}>
+                    <button type="button" className="btn" style={{ flex: 1, background: 'rgba(255,255,255,0.1)' }} onClick={() => setEditingUserId(null)}>Cancelar</button>
+                    <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Guardar</button>
+                  </div>
+                </form>
+              </div>
+            ) : (
               <>
-                {paged.map((u) => (
-                  <div key={u.id} className="list-item" style={{ background: 'rgba(255,255,255,0.6)', border: '1px solid var(--glass-border)' }}>
-                    <div>
-                      <strong style={{ fontSize: '1.05rem', color: 'var(--text-main)' }}>{u.username}</strong>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '4px 0' }}>
-                        <span className={`badge badge-${u.rol}`}>{u.rol?.replace(/_/g, ' ')}</span>
-                      </div>
-                    </div>
-                    <div className="list-item-actions">
-                      <button className="icon-btn" onClick={() => startEditUser(u)}><Wrench size={14} /></button>
-                      {(user.rol === 'admin' || user.rol === 'jefe_de_auxiliares') && (
-                        <button className="icon-btn danger" onClick={() => deleteUser(u)} disabled={u.id === user.id}><Trash2 size={14} /></button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <input 
+                    type="text" 
+                    className="input-field" 
+                    placeholder="Buscar por usuario o rol..." 
+                    value={userSearch}
+                    onChange={e => { setUserSearch(e.target.value); setCurrentPage(1); }}
+                    style={{ flex: 1 }}
+                  />
+                  <button className="btn btn-primary" onClick={() => {
+                    setEditingUserId('new');
+                    setUserForm({ ...emptyUser, rol: 'profesor' });
+                  }}>
+                    <Plus size={16} /> Nuevo Usuario
+                  </button>
+                </div>
 
-                {totalPages > 1 && (
-                  <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginTop: '1rem', padding: '10px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                    <button className="btn btn-primary" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} style={{ padding: '4px 12px', fontSize: '0.8rem' }}>Anterior</button>
-                    <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>Página {currentPage} de {totalPages}</span>
-                    <button className="btn btn-primary" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)} style={{ padding: '4px 12px', fontSize: '0.8rem' }}>Siguiente</button>
-                  </div>
-                )}
+                <div className="user-list" style={{ maxHeight: '50vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', paddingRight: '5px' }}>
+                  {(() => {
+                    const filtered = (data.users || []).filter(u => {
+                      const lowerSearch = userSearch.toLowerCase();
+                      if (u.username?.toLowerCase().includes(lowerSearch)) return true;
+                      if (u.rol?.toLowerCase().replace(/_/g, ' ').includes(lowerSearch)) return true;
+                      return false;
+                    });
+                    const totalPages = Math.ceil(filtered.length / usersPerPage);
+                    const paged = filtered.slice((currentPage - 1) * usersPerPage, currentPage * usersPerPage);
+
+                    if (paged.length === 0) {
+                      return <div style={{ textAlign: 'center', padding: '2rem', opacity: 0.5 }}>No se encontraron usuarios</div>;
+                    }
+
+                    return (
+                      <>
+                        {paged.map((u) => (
+                          <div key={u.id} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '12px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '15px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
+                              <div style={{ width: '36px', height: '36px', background: 'rgba(0,120,215,0.1)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
+                                <UserCheck size={18} />
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>{u.username}</div>
+                                <div style={{ marginTop: '2px' }}>
+                                  <span className={`badge badge-${u.rol}`} style={{ fontSize: '0.65rem' }}>{u.rol?.replace(/_/g, ' ')}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '5px' }}>
+                              <button className="icon-btn" onClick={() => startEditUser(u)} title="Editar Usuario"><Wrench size={14} /></button>
+                              {(user.rol === 'admin' || user.rol === 'jefe_de_auxiliares') && (
+                                <button 
+                                  className="icon-btn danger" 
+                                  onClick={() => deleteUser(u)} 
+                                  disabled={u.id === user.id}
+                                  title="Eliminar Usuario"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+
+                        {totalPages > 1 && (
+                          <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginTop: '1rem', padding: '10px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                            <button className="btn btn-primary" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} style={{ padding: '4px 12px', fontSize: '0.8rem' }}>Anterior</button>
+                            <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>Página {currentPage} de {totalPages}</span>
+                            <button className="btn btn-primary" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)} style={{ padding: '4px 12px', fontSize: '0.8rem' }}>Siguiente</button>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
               </>
-            );
-          })()}
+            )}
+
+            {!editingUserId && <button className="btn" onClick={() => { setShowUserModal(false); setEditingUserId(null); }} style={{ width: '100%', background: 'rgba(255,255,255,0.1)' }}>Cerrar Ventana</button>}
+          </div>
+        </Modal>
+      )}
+
+      {/* Acceso a Gestión de Usuarios */}
+      <section className="management-card" style={{ gridColumn: isMobile ? 'auto' : 'span 2', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <div style={{ width: '45px', height: '45px', background: 'rgba(0,120,215,0.1)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
+            <Users size={24} />
+          </div>
+          <div>
+            <h2 style={{ fontSize: '1.1rem', marginBottom: '4px' }}>Gestión de Usuarios</h2>
+            <p style={{ fontSize: '0.8rem', opacity: 0.6 }}>Administra las cuentas de acceso, roles y contraseñas de los preceptores y profesores.</p>
+          </div>
         </div>
+        <button className="btn btn-primary" onClick={() => setShowUserModal(true)}>
+          Configurar Usuarios
+        </button>
       </section>
       
       {/* Acceso a Gestión de Licencias */}

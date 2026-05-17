@@ -7,9 +7,7 @@ const PRODUCTION_URL = 'https://industrialn6.pages.dev';
 const API_BASE_PATH = '/api/data';
 
 const getBaseUrl = () => {
-  // If we are in capacitor (android/ios) or not on the production domain, use the absolute production URL
   if (window.location.origin.includes('localhost') || 
-      window.location.origin.includes('capacitor://') || 
       window.location.origin.includes('http://localhost')) {
     return PRODUCTION_URL;
   }

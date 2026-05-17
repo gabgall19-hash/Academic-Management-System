@@ -14,11 +14,11 @@ This system streamlines administrative workflows, focusing on teacher attendance
     - Set annual day limits per license.
     - Automatic visual alerts when a teacher exceeds their allowed license quota.
 - **Long-Duration Licenses**: Bulk assignment tool to project licenses over specific date ranges (Calendar vs. Working days calculation).
-- **Teacher Profiles**: Detailed digital records including personal data, employment status (Active, On Leave, etc.), and historical attendance summaries.
+- **Teacher Profiles**: Detailed digital records including personal data, historical attendance summaries, and dynamic status-badge colors matching employment status: Active (Green), Baja y Reintegro (Yellow), Baja (Blue), Relevado (Red), and Tareas Pasivas (Orange).
 - **Institutional Identity**: Dynamic configuration of school name, code, locality, and director, which automatically updates the UI and print headers.
-- **Printable Reports**: One-click generation of institutional attendance sheets formatted for physical printing, including automatic nomenclature keys.
-- **Cloud Infrastructure**: Serverless architecture using Cloudflare Workers and D1 Database for zero-maintenance scaling.
-- **Security & Roles**: Multi-user system with role-based access control and mobile login capabilities.
+- **Printable Reports**: One-click generation of institutional attendance sheets formatted for physical printing (A4 landscape) with automatic nomenclature keys and cell font auto-scaling.
+- **Smart Print Highlights**: Automatic yellow and blue cell highlighting on the Cargo column during the discharge (Baja) or return (Reintegro) months, while keeping the interactive web panel clean.
+- **Printed Column Color Legends**: Embedded color-coded yellow and blue sub-bands inside the "Cargo/Espacios Curriculares" printed table header.
 
 ## 🛠️ Technology Stack
 
@@ -31,6 +31,16 @@ This system streamlines administrative workflows, focusing on teacher attendance
 
 
 ## 📜 Changelog
+
+### [v1.3.0] - 2026-05-17
+#### Added
+- **Printed Column Color Legends**: Embedded color-coded yellow ("Baja y Reintegro") and blue ("Baja") sub-bands inside the "Cargo/Espacios Curriculares" printed table header cell, perfectly aligned to the bottom.
+- **Print-Only Smart Fills**: Automatic yellow and blue Cargo cell highlights during the discharge (Baja) or return (Reintegro) months, utilizing a robust empty-date fallback to highlight even when exact dates are not set yet.
+- **Dynamic Badge Styling**: React-controlled status badges in teacher profiles mapping employment status to a curated color scheme: Activo (Green), Baja y Reintegro (Yellow), Baja (Blue), Relevado (Red), and Tareas Pasivas (Orange).
+- **Browser Print Color Adjustments**: Implemented full document-level `-webkit-print-color-adjust: exact` and `print-color-adjust: exact` styles in the print window to guarantee perfect background rendering.
+
+#### Changed
+- **Clean Interactive Panel**: Reverted temporary row background highlights inside the web app's interactive Attendance tab, keeping the UI clean and white for daily operational tasks.
 
 ### [v1.2.0] - 2026-05-15
 #### Added
