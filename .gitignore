@@ -55,6 +55,7 @@ db/
 scratch/
 db_*.json
 materias_dump.json
+read_xls.mjs
 
 # Evitar subir datos sensibles reales
 scripts/*.sql
