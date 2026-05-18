@@ -132,9 +132,10 @@ const Dashboard = ({ user, onLogout, onUpdateSelfPassword, isMobile, showToast, 
       <header className="panel-toolbar" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem', marginBottom: '0.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           {isMobile && !isTeacherDetailOpen && <button className="icon-btn" onClick={() => setIsMenuOpen(true)}><Menu size={20} /></button>}
+          <img src="/escudo.svg" alt="Escudo" style={{ width: '45px', height: '45px', objectFit: 'contain' }} />
           <div>
-            <h1 style={{ color: 'var(--primary)', fontSize: '1.4rem' }}>{schoolName}</h1>
-            <p style={{ opacity: 0.6, fontSize: '0.8rem', marginTop: '2px' }}>Sistema de Asistencia</p>
+            <h1 style={{ color: 'var(--primary)', fontSize: '1.4rem', margin: 0 }}>{schoolName}</h1>
+            <p style={{ opacity: 0.6, fontSize: '0.8rem', margin: 0, marginTop: '2px' }}>Sistema de Asistencia</p>
           </div>
         </div>
         

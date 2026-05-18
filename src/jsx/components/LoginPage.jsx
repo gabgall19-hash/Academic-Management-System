@@ -16,8 +16,9 @@ const LoginPage = ({
   return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
       <div className="glass-card" style={{ padding: '2rem', width: '100%', maxWidth: '400px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', justifyContent: 'center' }}>
-          <h2 style={{ fontSize: '1.2rem', textAlign: 'center' }}>Asistencia Docentes {schoolName}</h2>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', justifyContent: 'center' }}>
+          <img src="/escudo.svg" alt="Escudo EPP N° 33" style={{ width: '80px', height: '80px', objectFit: 'contain' }} />
+          <h2 style={{ fontSize: '1.2rem', textAlign: 'center', margin: 0 }}>Asistencia Docentes {schoolName}</h2>
         </div>
 
         {isMobile && (
