@@ -32,6 +32,14 @@ This system streamlines administrative workflows, focusing on teacher attendance
 
 ## 📜 Changelog
 
+### [v1.5.0] - 2026-05-18
+#### Added
+- **Authentication & Core Refactoring**: Separated UI states from pure logic to improve modularity and clean up the root `App.jsx` structure.
+- **Modular Login Screen**: Extracted the full login UI into [LoginPage.jsx](file:///c:/Users/Gabriel/Desktop/dev/colegio-33/src/jsx/components/LoginPage.jsx), handling passwords visibility, mobile access locks, and "Remember Me" credentials.
+- **Animated Toast Notification**: Created a standardized, auto-exiting [Toast.jsx](file:///c:/Users/Gabriel/Desktop/dev/colegio-33/src/jsx/UI/Toast.jsx) notification bar for feedback notifications.
+- **JWT Silent Auto-Refresh**: Installed a global interceptor inside [session.js](file:///c:/Users/Gabriel/Desktop/dev/colegio-33/src/jsx/functions/session.js) that monitors the custom header `X-Refresh-Token` on every fetch response and silently refreshes and commits the session storage token, keeping users authenticated effortlessly.
+- **Dedicated Session Manager Utility**: Consolidated local storage helper functions (`getStoredUser`, `storeUser`, `clearStoredUser`) to prevent direct database leaks.
+
 ### [v1.4.0] - 2026-05-18
 #### Added
 - **Two-Role Operational Permission System**: Defined a clean hierarchy featuring **Administrador** (full access) and **Secretaría** (restricted operational access).
