@@ -159,9 +159,9 @@ select.input-field option, select option {
 
 .input-field:focus {
   outline: none;
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--input-bg);
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(0, 120, 215, 0.2);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
 }
 
 .input-field:disabled,
