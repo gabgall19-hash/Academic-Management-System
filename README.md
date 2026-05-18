@@ -35,7 +35,7 @@ This system streamlines administrative workflows, focusing on teacher attendance
 ### [v1.5.5] - 2026-05-18
 #### Added
 - **Private Internal Domain**: Purged standard SEO meta tags and removed indexing robots from `index.html` to guarantee strict privacy for the institutional platform.
-- **Dynamic Dark/Light Theme**: Added a user-toggleable visual theme (Sun/Moon button) in the dashboard with `localStorage` memory and full CSS root integration.
+- **Dynamic Dark/Light Theme**: Added a user-toggleable visual theme (Sun/Moon button) in the dashboard with `localStorage` memory and full CSS root integration. Includes high-contrast accessibility refinements for inputs and dropdowns.
 - **Escudo Vectorial Institucional**: Replaced standard React logos with an extremely high-fidelity SVG `escudo.svg`, heavily integrated into the Dashboard headers, Login UI, and set as the official browser tab favicon.
 - **Cloudflare D1 Performance & Cost Optimization**: Refactored backend queries to minimize Cloudflare D1's "Rows Read" and "Rows Written" metrics.
 - **Optimized D1 Upserts**: Replaced SELECT-then-UPDATE queries in `record_attendance` and `save_justificacion` with an optimistic UPDATE-fallback-INSERT pattern using D1's `meta.changes`, reducing SQLite reads to zero for existing records.

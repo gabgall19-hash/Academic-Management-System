@@ -51,9 +51,9 @@
 }
 
 .month-select {
-  background: rgba(15, 23, 42, 0.8);
-  border: 1px solid var(--glass-border);
-  color: white;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--input-text);
   padding: 0.5rem 1rem;
   border-radius: 8px;
   font-size: 0.9rem;
@@ -152,8 +152,8 @@
 }
 
 .profile-card {
-  background: white;
-  border: 1px solid rgba(0,0,0,0.05);
+  background: var(--table-bg);
+  border: 1px solid var(--input-border);
   border-radius: 20px;
   padding: 1.25rem;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
@@ -181,7 +181,7 @@
 .profile-title h2 {
   font-size: 1.8rem;
   margin-bottom: 0.5rem;
-  color: #111;
+  color: var(--text-main);
 }
 
 .badge-status {
@@ -215,7 +215,7 @@
 
 .info-item .value {
   font-size: 1.1rem;
-  color: #111;
+  color: var(--text-main);
   font-weight: 500;
 }
 
@@ -223,8 +223,9 @@
   padding: 0.4rem 0.8rem;
   font-size: 0.95rem;
   width: 100%;
-  border: 1px solid #000 !important;
-  background: white;
+  border: 1px solid var(--input-border) !important;
+  background: var(--input-bg);
+  color: var(--input-text);
 }
 
 .profile-name-input {
@@ -232,8 +233,9 @@
   font-weight: bold !important;
   text-align: center;
   margin-bottom: 1rem;
-  background: white !important;
-  border: 2px solid #000 !important;
+  background: var(--input-bg) !important;
+  color: var(--input-text) !important;
+  border: 2px solid var(--input-border) !important;
   border-radius: 8px;
 }
 
