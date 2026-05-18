@@ -61,3 +61,4 @@ read_xls.mjs
 scripts/*.sql
 scripts/*.cjs
 db/migrations/*.sql
+public/Firma.png
