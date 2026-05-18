@@ -32,6 +32,13 @@ This system streamlines administrative workflows, focusing on teacher attendance
 
 ## 📜 Changelog
 
+### [v1.5.5] - 2026-05-18
+#### Added
+- **Cloudflare D1 Performance & Cost Optimization**: Refactored backend queries to minimize Cloudflare D1's "Rows Read" and "Rows Written" metrics.
+- **Optimized D1 Upserts**: Replaced SELECT-then-UPDATE queries in `record_attendance` and `save_justificacion` with an optimistic UPDATE-fallback-INSERT pattern using D1's `meta.changes`, reducing SQLite reads to zero for existing records.
+- **Pruned Unconditional Table Scans**: Removed the redundant role migration query from `dashboard_init` that triggered unnecessary D1 reads on every dashboard load.
+- **Educational Environment Scope**: Expanded core description to encompass primary, secondary, technical secondary, and university level structures.
+
 ### [v1.5.0] - 2026-05-18
 #### Added
 - **Authentication & Core Refactoring**: Separated UI states from pure logic to improve modularity and clean up the root `App.jsx` structure.

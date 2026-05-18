@@ -79,14 +79,11 @@ export async function onRequestPost({ env, request }) {
     if (action === 'record_attendance') {
       const { docente_id, fecha, estado, detalle } = body;
       
-      // Upsert logic for sqlite: check if exists, then update or insert. 
-      // Si el docente ya tiene asistencia en esa fecha, la actualizamos.
-      const existing = await env.DB.prepare("SELECT id FROM asistencias_docentes WHERE docente_id = ? AND fecha = ?").bind(docente_id, fecha).first();
-      
-      if (existing) {
-        await env.DB.prepare("UPDATE asistencias_docentes SET estado = ?, detalle = ? WHERE id = ?")
-          .bind(estado, detalle, existing.id).run();
-      } else {
+      // Upsert optimization: attempt UPDATE first to avoid unnecessary SELECT reads.
+      const res = await env.DB.prepare("UPDATE asistencias_docentes SET estado = ?, detalle = ? WHERE docente_id = ? AND fecha = ?")
+        .bind(estado, detalle, docente_id, fecha).run();
+        
+      if (res.meta.changes === 0) {
         await env.DB.prepare("INSERT INTO asistencias_docentes (docente_id, fecha, estado, detalle) VALUES (?, ?, ?, ?)")
           .bind(docente_id, fecha, estado, detalle).run();
       }
@@ -102,13 +99,10 @@ export async function onRequestPost({ env, request }) {
     
     if (action === 'save_justificacion') {
       const { docente_id, codigo_licencia, anio, motivo } = body;
-      const existing = await env.DB.prepare("SELECT id FROM justificaciones_licencias WHERE docente_id = ? AND codigo_licencia = ? AND anio = ?")
-        .bind(docente_id, codigo_licencia, anio).first();
-      
-      if (existing) {
-        await env.DB.prepare("UPDATE justificaciones_licencias SET motivo = ? WHERE id = ?")
-          .bind(motivo, existing.id).run();
-      } else {
+      const res = await env.DB.prepare("UPDATE justificaciones_licencias SET motivo = ? WHERE docente_id = ? AND codigo_licencia = ? AND anio = ?")
+        .bind(motivo, docente_id, codigo_licencia, anio).run();
+        
+      if (res.meta.changes === 0) {
         await env.DB.prepare("INSERT INTO justificaciones_licencias (docente_id, codigo_licencia, anio, motivo) VALUES (?, ?, ?, ?)")
           .bind(docente_id, codigo_licencia, anio, motivo).run();
       }

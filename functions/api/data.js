@@ -128,9 +128,6 @@ export async function onRequestGet({ env, request }) {
   
   try {
     if (type === 'dashboard_init') {
-      // Migración automática de profesor a secretaria
-      await env.DB.prepare("UPDATE usuarios SET rol = 'secretaria' WHERE rol = 'profesor'").run();
-
       // Devolver ajustes y usuarios (solo para admin)
       const { results: ajustesRaw } = await env.DB.prepare('SELECT clave, valor FROM ajustes').all();
       const config = {};
