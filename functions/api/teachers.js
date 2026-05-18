@@ -31,6 +31,17 @@ export async function onRequestGet({ env, request }) {
       return json(results);
     }
     
+    if (type === 'justificaciones') {
+      const docenteId = url.searchParams.get('docenteId');
+      if (docenteId) {
+        const { results } = await env.DB.prepare('SELECT * FROM justificaciones_licencias WHERE docente_id = ?').bind(docenteId).all();
+        return json(results);
+      } else {
+        const { results } = await env.DB.prepare('SELECT * FROM justificaciones_licencias').all();
+        return json(results);
+      }
+    }
+    
     return json({ error: 'Tipo no especificado' }, 400);
   } catch (err) {
     return json({ error: err.message }, 500);
@@ -87,6 +98,21 @@ export async function onRequestPost({ env, request }) {
         const { docente_id, fecha } = body;
         await env.DB.prepare("DELETE FROM asistencias_docentes WHERE docente_id = ? AND fecha = ?").bind(docente_id, fecha).run();
         return json({ success: true });
+    }
+    
+    if (action === 'save_justificacion') {
+      const { docente_id, codigo_licencia, anio, motivo } = body;
+      const existing = await env.DB.prepare("SELECT id FROM justificaciones_licencias WHERE docente_id = ? AND codigo_licencia = ? AND anio = ?")
+        .bind(docente_id, codigo_licencia, anio).first();
+      
+      if (existing) {
+        await env.DB.prepare("UPDATE justificaciones_licencias SET motivo = ? WHERE id = ?")
+          .bind(motivo, existing.id).run();
+      } else {
+        await env.DB.prepare("INSERT INTO justificaciones_licencias (docente_id, codigo_licencia, anio, motivo) VALUES (?, ?, ?, ?)")
+          .bind(docente_id, codigo_licencia, anio, motivo).run();
+      }
+      return json({ success: true });
     }
     
     return json({ error: 'Acción no soportada' }, 400);

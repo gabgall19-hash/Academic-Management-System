@@ -55,13 +55,32 @@ async function handleUsers(env, request, body) {
 // Funciones para manejar Licencias
 async function handleLicencias(env, request, body) {
   if (body.action === 'create') {
-    await env.DB.prepare("INSERT INTO licencias (codigo, descripcion, limite_dias, larga_duracion) VALUES (?, ?, ?, ?)")
-      .bind(body.codigo, body.descripcion, body.limite_dias, body.larga_duracion || 0).run();
+    await env.DB.prepare("INSERT INTO licencias (codigo, descripcion, limite_dias, larga_duracion, extensible, anual, supera_anual, cada_anios) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(
+        body.codigo, 
+        body.descripcion, 
+        body.limite_dias, 
+        body.larga_duracion || 0,
+        body.extensible || 0,
+        body.anual || 0,
+        body.supera_anual || 0,
+        body.cada_anios !== undefined && body.cada_anios !== '' ? parseInt(body.cada_anios, 10) : null
+      ).run();
     return json({ success: true });
   }
   if (body.action === 'update') {
-    await env.DB.prepare("UPDATE licencias SET codigo = ?, descripcion = ?, limite_dias = ?, larga_duracion = ? WHERE id = ?")
-      .bind(body.codigo, body.descripcion, body.limite_dias, body.larga_duracion || 0, body.id).run();
+    await env.DB.prepare("UPDATE licencias SET codigo = ?, descripcion = ?, limite_dias = ?, larga_duracion = ?, extensible = ?, anual = ?, supera_anual = ?, cada_anios = ? WHERE id = ?")
+      .bind(
+        body.codigo, 
+        body.descripcion, 
+        body.limite_dias, 
+        body.larga_duracion || 0,
+        body.extensible || 0,
+        body.anual || 0,
+        body.supera_anual || 0,
+        body.cada_anios !== undefined && body.cada_anios !== '' ? parseInt(body.cada_anios, 10) : null,
+        body.id
+      ).run();
     return json({ success: true });
   }
   if (body.action === 'delete') {
@@ -71,21 +90,65 @@ async function handleLicencias(env, request, body) {
   return json({ error: 'Acción no soportada en licencias' }, 400);
 }
 
+// Funciones para manejar Años del Sistema
+async function handleAnios(env, request, body) {
+  if (body.action === 'create') {
+    if (!/^\d{4}$/.test(body.anio)) {
+      return json({ error: 'El año debe tener exactamente 4 dígitos numéricos' }, 400);
+    }
+    await env.DB.prepare("INSERT OR IGNORE INTO anios_sistema (anio) VALUES (?)")
+      .bind(body.anio).run();
+    return json({ success: true });
+  }
+  if (body.action === 'delete') {
+    await env.DB.prepare("DELETE FROM anios_sistema WHERE anio = ?").bind(body.anio).run();
+    await env.DB.prepare("DELETE FROM asistencias_docentes WHERE substr(fecha, 1, 4) = ?").bind(body.anio).run();
+    return json({ success: true });
+  }
+  return json({ error: 'Acción no soportada en anios' }, 400);
+}
+
+// Funciones para manejar Feriados
+async function handleFeriados(env, request, body) {
+  if (body.action === 'create') {
+    await env.DB.prepare("INSERT OR IGNORE INTO feriados (fecha, descripcion) VALUES (?, ?)")
+      .bind(body.fecha, body.descripcion).run();
+    return json({ success: true });
+  }
+  if (body.action === 'delete') {
+    await env.DB.prepare("DELETE FROM feriados WHERE id = ?").bind(body.id).run();
+    return json({ success: true });
+  }
+  return json({ error: 'Acción no soportada en feriados' }, 400);
+}
+
 export async function onRequestGet({ env, request }) {
   const url = new URL(request.url);
   const type = url.searchParams.get('type');
   
   try {
     if (type === 'dashboard_init') {
+      // Migración automática de profesor a secretaria
+      await env.DB.prepare("UPDATE usuarios SET rol = 'secretaria' WHERE rol = 'profesor'").run();
+
       // Devolver ajustes y usuarios (solo para admin)
       const { results: ajustesRaw } = await env.DB.prepare('SELECT clave, valor FROM ajustes').all();
       const config = {};
       ajustesRaw.forEach(r => config[r.clave] = r.valor);
 
       const { results: users } = await env.DB.prepare('SELECT id, username, rol, fecha_creacion FROM usuarios').all();
-      const { results: licencias } = await env.DB.prepare('SELECT id, codigo, descripcion, limite_dias, larga_duracion FROM licencias').all();
+      const { results: licencias } = await env.DB.prepare('SELECT id, codigo, descripcion, limite_dias, larga_duracion, extensible, anual, supera_anual, cada_anios FROM licencias').all();
+      
+      const { results: rawAnios } = await env.DB.prepare(`
+        SELECT a.anio, 
+          (SELECT COUNT(DISTINCT docente_id) FROM asistencias_docentes WHERE substr(fecha, 1, 4) = a.anio) as cant_docentes 
+        FROM anios_sistema a 
+        ORDER BY a.anio DESC
+      `).all();
 
-      return json({ config, users, licencias });
+      const { results: feriados } = await env.DB.prepare('SELECT id, fecha, descripcion FROM feriados ORDER BY fecha ASC').all();
+
+      return json({ config, users, licencias, years: rawAnios, feriados });
     }
     
     if (type === 'settings') {
@@ -113,6 +176,8 @@ export async function onRequestPost({ env, request }) {
     if (type === 'config') return await handleConfig(env, request, body);
     if (type === 'users') return await handleUsers(env, request, body);
     if (type === 'licencias') return await handleLicencias(env, request, body);
+    if (type === 'anios') return await handleAnios(env, request, body);
+    if (type === 'feriados') return await handleFeriados(env, request, body);
     
     if (type === 'self_password') {
       const { hashPassword } = require('./_utils.js');

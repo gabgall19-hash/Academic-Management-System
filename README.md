@@ -32,6 +32,15 @@ This system streamlines administrative workflows, focusing on teacher attendance
 
 ## 📜 Changelog
 
+### [v1.4.0] - 2026-05-18
+#### Added
+- **Two-Role Operational Permission System**: Defined a clean hierarchy featuring **Administrador** (full access) and **Secretaría** (restricted operational access).
+- **Security Access Locks**: Blocked the Settings Panel, teacher creation/modification buttons, and attachment uploads/deletions from Secretaría accounts.
+- **Dynamic Role Migrator**: Background D1 query silently converting any legacy `profesor` credentials to `secretaria` role seamlessly on dashboard load.
+- **Academic Years Management**: Registered distinct years with cascading deletes and a strict 4-digit input validator.
+- **Holiday Blockers & Bypass Overrides**: Preloaded official 2026 Argentine national holidays. Block columns in grid with `"FE"` light-red cells, providing detailed historical descriptions upon hover/click, and override checkboxes to unlock columns for manual attendance entry.
+- **Dynamic Swapped Header Layout**: Swapped header metadata layout to render `@<rol>` (lowercase) on the first line and `<username>` on the second line.
+
 ### [v1.3.0] - 2026-05-17
 #### Added
 - **Printed Column Color Legends**: Embedded color-coded yellow ("Baja y Reintegro") and blue ("Baja") sub-bands inside the "Cargo/Espacios Curriculares" printed table header cell, perfectly aligned to the bottom.

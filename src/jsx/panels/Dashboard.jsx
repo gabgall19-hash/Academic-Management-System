@@ -140,8 +140,8 @@ const Dashboard = ({ user, onLogout, onUpdateSelfPassword, isMobile, showToast, 
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.4rem 1rem', background: 'rgba(255,255,255,0.5)', borderRadius: '12px', border: '1px solid var(--glass-border)', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
           {!isMobile && <div style={{ textAlign: 'right' }}>
-            <div style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '0.9rem' }}>@{user.username}</div>
-            <div style={{ color: 'var(--primary)', fontWeight: '800', fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{user.rol.replace(/_/g, ' ')}</div>
+            <div style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '0.9rem', textTransform: 'lowercase' }}>@{user.rol}</div>
+            <div style={{ color: 'var(--primary)', fontWeight: '800', fontSize: '0.65rem', textTransform: 'none', letterSpacing: '0.05em' }}>{user.username}</div>
           </div>}
           
           {!isMobile && <div style={{ width: '1px', height: '24px', background: 'var(--glass-border)' }}></div>}
@@ -221,6 +221,9 @@ const Dashboard = ({ user, onLogout, onUpdateSelfPassword, isMobile, showToast, 
                 handleUpdateMobileLogin={handleUpdateMobileLogin}
                 handleUpdateSetting={handleUpdateSetting}
                 handleLicenciaAction={handleLicenciaAction}
+                apiService={apiService}
+                showToast={showToast}
+                loadData={loadData}
               />
             )}
           </>

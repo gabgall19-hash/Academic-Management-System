@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Save, Calendar, CheckCircle, XCircle, Search, Layers, User, Plus, Edit, Trash2, FileSpreadsheet, Printer, Upload, FileText, ExternalLink, ShieldAlert, Eye, EyeOff } from 'lucide-react';
+import { Save, Calendar, CheckCircle, XCircle, Search, Layers, User, Plus, Edit, Trash2, FileSpreadsheet, Printer, Upload, FileText, ExternalLink, ShieldAlert, Eye, EyeOff, Flag } from 'lucide-react';
 
 import Skeleton, { TableSkeleton } from '../UI/Skeleton';
 import SaveStatusButton from '../UI/SaveStatusButton';
@@ -56,6 +56,22 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
   const [teacherHistory, setTeacherHistory] = useState([]);
   const [expandedCategories, setExpandedCategories] = useState({});
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [selectedHistoryYear, setSelectedHistoryYear] = useState('Todos');
+  const [showJustificacionModal, setShowJustificacionModal] = useState(false);
+  const [justifModalData, setJustifModalData] = useState({ codigo: '', anio: '', motivo: '' });
+  const [justificaciones, setJustificaciones] = useState([]);
+
+  const availableYears = useMemo(() => {
+    const yearsSet = new Set();
+    teacherHistory.forEach(h => {
+      if (h.fecha) {
+        const yr = h.fecha.substring(0, 4);
+        if (yr) yearsSet.add(yr);
+      }
+    });
+    yearsSet.add(new Date().getFullYear().toString());
+    return Array.from(yearsSet).sort((a, b) => b.localeCompare(a));
+  }, [teacherHistory]);
   const [showLicenseInitModal, setShowLicenseInitModal] = useState(false);
   const [licenseInitForm, setLicenseInitForm] = useState({
     teacherId: '',
@@ -65,6 +81,46 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
     contemplar: 'corridos'
   });
   const [editForm, setEditForm] = useState({});
+
+  // Feriados y estados adicionales
+  const [deactivatedHolidays, setDeactivatedHolidays] = useState([]);
+  const [activeHolidayDetail, setActiveHolidayDetail] = useState(null);
+
+  useEffect(() => {
+    if (data && data.config && data.config.feriados_desactivados) {
+      try {
+        const loaded = JSON.parse(data.config.feriados_desactivados);
+        setDeactivatedHolidays(loaded);
+      } catch (e) {}
+    }
+  }, [data]);
+
+  const toggleDeactivatedHoliday = async (dateStr) => {
+    const newDeactivated = deactivatedHolidays.includes(dateStr)
+      ? deactivatedHolidays.filter(d => d !== dateStr)
+      : [...deactivatedHolidays, dateStr];
+    setDeactivatedHolidays(newDeactivated);
+    try {
+      await apiService.fetchData('/api/data?type=config', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'update_setting', clave: 'feriados_desactivados', valor: JSON.stringify(newDeactivated) })
+      });
+      showToast('Bloqueo de feriado actualizado', 'success');
+    } catch(e) {
+      showToast('Error al guardar configuración de feriado', 'error');
+    }
+  };
+
+  const holidaysMap = useMemo(() => {
+    const map = {};
+    if (data.feriados) {
+      data.feriados.forEach(f => {
+        map[f.fecha] = f.descripcion;
+      });
+    }
+    return map;
+  }, [data.feriados]);
+
   // Generate months for selector
   const monthOptions = useMemo(() => {
     const options = [];
@@ -75,7 +131,13 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
     return options;
   }, []);
 
-  const years = ['2025', '2026', '2027'];
+  const years = useMemo(() => {
+    if (data.years && data.years.length > 0) {
+      return data.years.map(y => y.anio).sort((a, b) => b.localeCompare(a));
+    }
+    return ['2025', '2026', '2027'];
+  }, [data.years]);
+
   const currentYear = selectedMonth.split('-')[0];
   const currentMonthId = selectedMonth.split('-')[1];
 
@@ -110,6 +172,10 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
       // 3. Cargar asistencias del año
       const yearAttRes = await apiService.fetchData(`/api/teachers?type=attendance_year&year=${currentYear}`);
       setYearlyAttendance(yearAttRes || []);
+
+      // 4. Cargar justificaciones globales
+      const justifRes = await apiService.fetchData('/api/teachers?type=justificaciones');
+      setJustificaciones(justifRes || []);
     } catch (err) {
       showToast('Error cargando datos: ' + err.message, 'error');
     } finally {
@@ -154,10 +220,13 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
       loadTeacherHistory(selectedTeacher.id);
       setIsEditingProfile(false);
       setEditForm({ ...selectedTeacher });
+      setSelectedHistoryYear('Todos');
     } else {
       setTeacherHistory([]);
+      setJustificaciones([]);
       setExpandedCategories({});
       setIsEditingProfile(false);
+      setSelectedHistoryYear('Todos');
     }
   }, [selectedTeacher]);
 
@@ -169,8 +238,12 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
   const loadTeacherHistory = async (docenteId) => {
     try {
       setLoadingHistory(true);
-      const res = await apiService.fetchData(`/api/teachers?type=attendance&docenteId=${docenteId}`);
-      setTeacherHistory(res || []);
+      const [resHistory, resJustif] = await Promise.all([
+        apiService.fetchData(`/api/teachers?type=attendance&docenteId=${docenteId}`),
+        apiService.fetchData('/api/teachers?type=justificaciones')
+      ]);
+      setTeacherHistory(resHistory || []);
+      setJustificaciones(resJustif || []);
     } catch (e) {
       showToast('Error al cargar historial', 'error');
     } finally {
@@ -178,10 +251,42 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
     }
   };
 
+  const openJustificacionModal = (codigo, anio, motivo) => {
+    setJustifModalData({ codigo, anio, motivo });
+    setShowJustificacionModal(true);
+  };
+
+  const handleSaveJustificacion = async () => {
+    if (!justifModalData.motivo.trim()) {
+      showToast('Por favor ingrese el motivo de la justificación', 'warning');
+      return;
+    }
+    try {
+      await apiService.fetchData('/api/teachers?action=save_justificacion', {
+        method: 'POST',
+        body: JSON.stringify({
+          docente_id: selectedTeacher.id,
+          codigo_licencia: justifModalData.codigo,
+          anio: justifModalData.anio,
+          motivo: justifModalData.motivo
+        })
+      });
+      showToast('Licencia justificada correctamente. Situación regularizada.', 'success');
+      setShowJustificacionModal(false);
+      loadTeacherHistory(selectedTeacher.id);
+      loadData();
+    } catch (e) {
+      showToast('Error al guardar la justificación', 'error');
+    }
+  };
+
   const getAttendanceSummary = () => {
     const summary = {};
-    // Agrupar por código
-    const filtered = teacherHistory.filter(h => h.estado && h.estado !== 'A');
+    // Agrupar por código y filtrar por año
+    const filtered = teacherHistory.filter(h => {
+      const matchesYear = selectedHistoryYear === 'Todos' || (h.fecha && h.fecha.startsWith(selectedHistoryYear + '-'));
+      return h.estado && h.estado !== 'A' && matchesYear;
+    });
     // Ordenar por fecha ASC para detectar rangos
     const sorted = [...filtered].sort((a, b) => a.fecha.localeCompare(b.fecha));
     
@@ -295,7 +400,9 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
     // Comparar con límites
     const exceeded = [];
     data.licencias.forEach(lic => {
-      if (lic.limite_dias && counts[lic.codigo] > lic.limite_dias) {
+      const hasJustif = justificaciones.some(j => j.docente_id === teacherId && j.codigo_licencia === lic.codigo && j.anio === currentYear);
+      
+      if (lic.limite_dias && counts[lic.codigo] > lic.limite_dias && !hasJustif) {
         exceeded.push({ 
           codigo: lic.codigo, 
           nombre: lic.descripcion, 
@@ -565,8 +672,8 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
                   <th class="col-name" rowspan="2">Apellido y Nombres</th>
                   <th class="col-cargo wrap-text" rowspan="2">Codigo del Cargo/Horas</th>
                   <th class="col-chs" rowspan="2">C/HS</th>
-                  <th class="col-espacio wrap-text" rowspan="2" style="padding: 0 !important; vertical-align: bottom !important; font-weight: bold; background: white !important;">
-                    <div style="padding: 3px 0; font-size: 6.5pt; font-weight: bold; line-height: 1.1; border-bottom: 1px solid black; color: black !important; text-align: center;">Cargo/ Espacios Curriculares</div>
+                  <th class="col-espacio wrap-text" rowspan="2" style="padding: 0 !important; vertical-align: bottom !important; font-weight: bold; background: #f0f0f0 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;">
+                    <div style="background-color: #f0f0f0 !important; padding: 3px 0; font-size: 6.5pt; font-weight: bold; line-height: 1.1; border-bottom: 1px solid black; color: black !important; text-align: center; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;">Cargo/ Espacios Curriculares</div>
                     <div style="background-color: #fef9c3 !important; color: #854d0e !important; padding: 2px 0; font-size: 5pt; font-weight: bold; border-bottom: 1px solid black; text-transform: uppercase; text-align: center; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;">Baja y Reintegro</div>
                     <div style="background-color: rgb(75, 133, 211) !important; color: white !important; padding: 2px 0; font-size: 5pt; font-weight: bold; text-transform: uppercase; text-align: center; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;">Baja</div>
                   </th>
@@ -575,7 +682,21 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
                   <th colspan="4">Totales</th>
                 </tr>
                 <tr>
-                  ${days.map(d => `<th class="col-day ${suspendedDays.includes(d.date) ? 'suspended' : ''}">${d.day}</th>`).join('')}
+                  ${days.map(d => {
+                    const isSuspended = suspendedDays.includes(d.date);
+                    const holidayName = holidaysMap[d.date];
+                    const isHoliday = !!holidayName;
+                    const isHolidayActive = isHoliday && !deactivatedHolidays.includes(d.date);
+                    
+                    let cellStyle = '';
+                    if (isSuspended) {
+                      cellStyle = 'background-color: rgb(106, 189, 255) !important;';
+                    } else if (isHolidayActive) {
+                      cellStyle = 'background-color: #fecaca !important; color: #dc2626 !important;';
+                    }
+                    
+                    return `<th class="col-day" style="${cellStyle}">${d.day}</th>`;
+                  }).join('')}
                   <th class="col-total vertical-text ui-vertical-header">Total Oblig.</th>
                   <th class="col-total vertical-text ui-vertical-header">Total Días Asis.</th>
                   <th class="col-total vertical-text ui-vertical-header">Oblig. a Deducir</th>
@@ -613,8 +734,12 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
                     </td>
                     <td>${t.turno || ''}</td>
                     ${days.map(d => {
-                      const val = getEffectiveAttendance(t, d.date);
                       const isSuspended = suspendedDays.includes(d.date);
+                      const holidayName = holidaysMap[d.date];
+                      const isHoliday = !!holidayName;
+                      const isHolidayActive = isHoliday && !deactivatedHolidays.includes(d.date);
+                      
+                      const val = isHolidayActive ? 'FE' : getEffectiveAttendance(t, d.date);
                       
                       let cellContent = val || '';
                       let cellStyle = '';
@@ -626,6 +751,8 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
                         if (t.estado_actual === 'Tareas Pasivas' && t.tp_concentracion) {
                           cellContent = `<div style="writing-mode: vertical-rl; transform: rotate(180deg); font-size: 10pt; font-weight: bold; line-height: 1.1; margin: 0 auto; display: flex; align-items: center; justify-content: center; white-space: nowrap; padding: 2px 0;">${valTrimmed}</div>`;
                           cellStyle = 'padding: 0 !important;';
+                        } else if (len === 2 && valTrimmed === 'FE') {
+                          cellContent = `<div style="font-size: 7.5pt; font-weight: bold; color: #dc2626;">FE</div>`;
                         } else if (len === 3) {
                           // 3 characters -> fit horizontally in a single line
                           cellContent = `<div style="font-size: 7pt; letter-spacing: -0.4px; white-space: nowrap; word-break: keep-all; display: inline-block; font-weight: bold; line-height: 1;">${valTrimmed}</div>`;
@@ -636,8 +763,15 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
                         }
                       }
                       
+                      let bgStyle = '';
+                      if (isSuspended) {
+                        bgStyle = 'background-color: rgb(106, 189, 255) !important;';
+                      } else if (isHolidayActive) {
+                        bgStyle = 'background-color: #fee2e2 !important;';
+                      }
+                      
                       return `
-                        <td style="${isSuspended ? 'background-color: rgb(106, 189, 255) !important;' : ''} ${cellStyle}">
+                        <td style="${bgStyle} ${cellStyle}">
                           ${cellContent}
                         </td>`;
                     }).join('')}
@@ -651,9 +785,17 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
             </table>
             <div class="footer-info" style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: ${footerMargin}; width: 100%;">
               <!-- Secretario (Extremo izquierdo) -->
-              <div style="display: flex; flex-direction: column; align-items: center; position: relative; width: 220px; text-align: center;">
-                <img src="/Firma.png" alt="Firma" style="height: ${signatureHeight}; width: auto; object-fit: contain; margin-bottom: -12px; z-index: 10; mix-blend-mode: multiply;" />
+              <div style="display: flex; flex-direction: column; align-items: center; width: 220px; text-align: center;">
+                <div style="height: ${signatureHeight};"></div>
                 <div style="border-top: 1.5px solid black; width: 100%; font-size: ${fontSizeLabels}; font-weight: bold; padding-top: 2px;">
+                  Secretario
+                </div>
+              </div>
+              
+              <!-- Firma digital (Centro) -->
+              <div style="display: flex; flex-direction: column; align-items: center; width: 220px; text-align: center;">
+                <img src="/Firma.png" alt="Firma" style="height: ${signatureHeight}; width: auto; object-fit: contain; z-index: 10; mix-blend-mode: multiply;" />
+                <div style="width: 100%; font-size: ${fontSizeLabels}; font-weight: bold; padding-top: 2px; visibility: hidden; user-select: none;">
                   Secretario
                 </div>
               </div>
@@ -744,6 +886,15 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
     e.preventDefault();
     if (!teacherForm.dni || !teacherForm.apellidos_nombres) {
       return showToast('DNI y Nombre son obligatorios', 'error');
+    }
+    if (!teacherForm.alta_fecha) {
+      return showToast('La Fecha de Alta es obligatoria', 'error');
+    }
+    if (teacherForm.estado_actual === 'Baja' && !teacherForm.baja_fecha) {
+      return showToast('La Fecha de Baja es obligatoria para el estado "Baja"', 'error');
+    }
+    if (teacherForm.estado_actual === 'Baja y Reintegro' && !teacherForm.reintegro_fecha) {
+      return showToast('La Fecha de Reintegro es obligatoria para el estado "Baja y Reintegro"', 'error');
     }
     try {
       const action = teacherForm.id ? 'update_teacher' : 'create_teacher';
@@ -889,10 +1040,10 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
       {showTeacherForm && (
         <Modal title={teacherForm.id ? "Editar Docente" : "Nuevo Docente"} onClose={() => setShowTeacherForm(false)}>
           <form className="stack-form" onSubmit={handleTeacherSubmit}>
-            <label>Apellidos y Nombres
+            <label>Apellidos y Nombres *
               <input type="text" className="input-field" value={teacherForm.apellidos_nombres} onChange={e => setTeacherForm({...teacherForm, apellidos_nombres: e.target.value})} required />
             </label>
-            <label>DNI
+            <label>DNI *
               <input type="text" className="input-field" value={teacherForm.dni} onChange={handleDniChange} placeholder="XX.XXX.XXX" required />
             </label>
             <label>Estado Actual
@@ -952,17 +1103,17 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
             <label>N° de Disposición
               <input type="text" className="input-field" value={teacherForm.num_disposicion} onChange={e => setTeacherForm({...teacherForm, num_disposicion: e.target.value})} />
             </label>
-            <label>Fecha de Alta
-              <input type="date" lang="es" className="input-field" value={teacherForm.alta_fecha} onChange={e => setTeacherForm({...teacherForm, alta_fecha: e.target.value})} />
+            <label>Fecha de Alta *
+              <input type="date" lang="es" className="input-field" value={teacherForm.alta_fecha} onChange={e => setTeacherForm({...teacherForm, alta_fecha: e.target.value})} required />
             </label>
             {teacherForm.estado_actual === 'Baja y Reintegro' && (
-              <label>Fecha de Reintegro
-                <input type="date" lang="es" className="input-field" value={teacherForm.reintegro_fecha} onChange={e => setTeacherForm({...teacherForm, reintegro_fecha: e.target.value})} />
+              <label>Fecha de Reintegro *
+                <input type="date" lang="es" className="input-field" value={teacherForm.reintegro_fecha} onChange={e => setTeacherForm({...teacherForm, reintegro_fecha: e.target.value})} required />
               </label>
             )}
             {teacherForm.estado_actual === 'Baja' && (
-              <label>Fecha de Baja
-                <input type="date" className="input-field" value={teacherForm.baja_fecha} onChange={e => setTeacherForm({...teacherForm, baja_fecha: e.target.value})} />
+              <label>Fecha de Baja *
+                <input type="date" className="input-field" value={teacherForm.baja_fecha} onChange={e => setTeacherForm({...teacherForm, baja_fecha: e.target.value})} required />
               </label>
             )}
             {(teacherForm.estado_actual === 'Relevado de Funciones' || (teacherForm.estado_actual === 'Tareas Pasivas' && teacherForm.tp_concentracion)) && (
@@ -1046,6 +1197,21 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
               {isEditingProfile ? (
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <button className="btn btn-primary" onClick={async () => {
+                    if (!editForm.apellidos_nombres) {
+                      return showToast('El Apellido y Nombre es obligatorio', 'error');
+                    }
+                    if (!editForm.dni) {
+                      return showToast('El DNI es obligatorio', 'error');
+                    }
+                    if (!editForm.alta_fecha) {
+                      return showToast('La Fecha de Alta es obligatoria', 'error');
+                    }
+                    if (editForm.estado_actual === 'Baja' && !editForm.baja_fecha) {
+                      return showToast('La Fecha de Baja es obligatoria para el estado "Baja"', 'error');
+                    }
+                    if (editForm.estado_actual === 'Baja y Reintegro' && !editForm.reintegro_fecha) {
+                      return showToast('La Fecha de Reintegro es obligatoria para el estado "Baja y Reintegro"', 'error');
+                    }
                     try {
                       await apiService.fetchData('/api/teachers?action=update_teacher', {
                         method: 'POST',
@@ -1066,28 +1232,30 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
                   </button>
                 </div>
               ) : (
-                <button className="btn btn-primary" onClick={() => { 
-                  setEditForm({
-                    id: selectedTeacher.id, dni: selectedTeacher.dni, apellidos_nombres: selectedTeacher.apellidos_nombres,
-                    cargo: selectedTeacher.cargo, estado_actual: selectedTeacher.estado_actual,
-                    codigo_cargo: selectedTeacher.codigo_cargo, c_hs: selectedTeacher.c_hs,
-                    c_hs_reducidas: selectedTeacher.c_hs_reducidas || '',
-                    turno: selectedTeacher.turno, alta_fecha: selectedTeacher.alta_fecha,
-                    baja_fecha: selectedTeacher.baja_fecha || '', 
-                    reintegro_fecha: selectedTeacher.reintegro_fecha || '',
-                    excluir_asistencia: selectedTeacher.excluir_asistencia || 0,
-                    num_disposicion: selectedTeacher.num_disposicion || '',
-                    adjunto_url: selectedTeacher.adjunto_url || '',
-                    institucion_destino: selectedTeacher.institucion_destino || '',
-                    tp_transitorias: selectedTeacher.tp_transitorias || 0,
-                    tp_horario_reducido: selectedTeacher.tp_horario_reducido || 0,
-                    tp_definitivas: selectedTeacher.tp_definitivas || 0,
-                    tp_concentracion: selectedTeacher.tp_concentracion || 0
-                  }); 
-                  setIsEditingProfile(true); 
-                }}>
-                  <Edit size={16} /> Editar Información
-                </button>
+                user.rol === 'admin' && (
+                  <button className="btn btn-primary" onClick={() => { 
+                    setEditForm({
+                      id: selectedTeacher.id, dni: selectedTeacher.dni, apellidos_nombres: selectedTeacher.apellidos_nombres,
+                      cargo: selectedTeacher.cargo, estado_actual: selectedTeacher.estado_actual,
+                      codigo_cargo: selectedTeacher.codigo_cargo, c_hs: selectedTeacher.c_hs,
+                      c_hs_reducidas: selectedTeacher.c_hs_reducidas || '',
+                      turno: selectedTeacher.turno, alta_fecha: selectedTeacher.alta_fecha,
+                      baja_fecha: selectedTeacher.baja_fecha || '', 
+                      reintegro_fecha: selectedTeacher.reintegro_fecha || '',
+                      excluir_asistencia: selectedTeacher.excluir_asistencia || 0,
+                      num_disposicion: selectedTeacher.num_disposicion || '',
+                      adjunto_url: selectedTeacher.adjunto_url || '',
+                      institucion_destino: selectedTeacher.institucion_destino || '',
+                      tp_transitorias: selectedTeacher.tp_transitorias || 0,
+                      tp_horario_reducido: selectedTeacher.tp_horario_reducido || 0,
+                      tp_definitivas: selectedTeacher.tp_definitivas || 0,
+                      tp_concentracion: selectedTeacher.tp_concentracion || 0
+                    }); 
+                    setIsEditingProfile(true); 
+                  }}>
+                    <Edit size={16} /> Editar Información
+                  </button>
+                )
               )}
             </div>
           </header>
@@ -1111,6 +1279,8 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
                         style={{ fontSize: '1.5rem', fontWeight: 'bold', textAlign: 'center', marginBottom: '1rem' }}
                         value={editForm.apellidos_nombres} 
                         onChange={e => setEditForm({...editForm, apellidos_nombres: e.target.value})} 
+                        placeholder="Apellido y Nombres *"
+                        required
                       />
                     ) : (
                       <h2>{selectedTeacher.apellidos_nombres}</h2>
@@ -1135,9 +1305,9 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
                   
                   <div className="info-grid">
                     <div className="info-item">
-                      <label>DNI</label>
+                      <label>DNI *</label>
                       {isEditingProfile ? (
-                        <input type="text" className="input-field compact" value={editForm.dni} onChange={handleDniChange} />
+                        <input type="text" className="input-field compact" value={editForm.dni} onChange={handleDniChange} required />
                       ) : (
                         <div className="value">{selectedTeacher.dni}</div>
                       )}
@@ -1180,9 +1350,9 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
 
                     {(editForm.estado_actual === 'Baja y Reintegro' || selectedTeacher.estado_actual === 'Baja y Reintegro') && (
                       <div className="info-item">
-                        <label>Fecha de Reintegro</label>
+                        <label>Fecha de Reintegro *</label>
                         {isEditingProfile ? (
-                          <input type="date" className="input-field compact" value={editForm.reintegro_fecha} onChange={e => setEditForm({...editForm, reintegro_fecha: e.target.value})} />
+                          <input type="date" className="input-field compact" value={editForm.reintegro_fecha} onChange={e => setEditForm({...editForm, reintegro_fecha: e.target.value})} required />
                         ) : (
                           <div className="value">{formatDate(selectedTeacher.reintegro_fecha) || '-'}</div>
                         )}
@@ -1191,9 +1361,9 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
 
                     {(editForm.estado_actual === 'Baja' || selectedTeacher.estado_actual === 'Baja') && (
                       <div className="info-item">
-                        <label>Fecha de Baja</label>
+                        <label>Fecha de Baja *</label>
                         {isEditingProfile ? (
-                          <input type="date" className="input-field compact" value={editForm.baja_fecha} onChange={e => setEditForm({...editForm, baja_fecha: e.target.value})} />
+                          <input type="date" className="input-field compact" value={editForm.baja_fecha} onChange={e => setEditForm({...editForm, baja_fecha: e.target.value})} required />
                         ) : (
                           <div className="value">{formatDate(selectedTeacher.baja_fecha) || '-'}</div>
                         )}
@@ -1340,9 +1510,9 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
                       )}
                     </div>
                     <div className="info-item">
-                      <label>Fecha de Alta</label>
+                      <label>Fecha de Alta *</label>
                       {isEditingProfile ? (
-                        <input type="date" lang="es" className="input-field compact" value={editForm.alta_fecha} onChange={e => setEditForm({...editForm, alta_fecha: e.target.value})} />
+                        <input type="date" lang="es" className="input-field compact" value={editForm.alta_fecha} onChange={e => setEditForm({...editForm, alta_fecha: e.target.value})} required />
                       ) : (
                         <div className="value">{formatDate(selectedTeacher.alta_fecha)}</div>
                       )}
@@ -1353,9 +1523,26 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
             </div>
 
             <div className="profile-card history-section">
-              <div className="section-header">
-                <Calendar size={20} />
-                <h3>Historial de Inasistencias / Licencias</h3>
+              <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: '1.2rem', paddingBottom: '8px', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <Calendar size={20} color="var(--primary)" />
+                  <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Historial de Inasistencias / Licencias</h3>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <label htmlFor="history-year-select" style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-main)', opacity: 0.8, textTransform: 'none', margin: 0 }}>Año:</label>
+                  <select 
+                    id="history-year-select"
+                    className="input-field compact"
+                    style={{ width: 'auto', padding: '4px 24px 4px 10px', fontSize: '0.85rem', cursor: 'pointer', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-main)' }}
+                    value={selectedHistoryYear}
+                    onChange={e => setSelectedHistoryYear(e.target.value)}
+                  >
+                    <option value="Todos">Todos los años</option>
+                    {availableYears.map(yr => (
+                      <option key={yr} value={yr}>{yr}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               
               <div className="history-list">
@@ -1381,6 +1568,11 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
                     const isExceeded = exceededList.some(exc => exc.codigo === code);
                     const isExpanded = expandedCategories[code];
                     
+                    const licConfig = licencias.find(l => l.codigo === code);
+                    const isExtensible = licConfig?.extensible === 1;
+                    const currentFilterYear = selectedHistoryYear === 'Todos' ? currentYear : selectedHistoryYear;
+                    const justifRecord = justificaciones.find(j => j.docente_id === selectedTeacher.id && j.codigo_licencia === code && j.anio === currentFilterYear);
+                    
                     return (
                       <div 
                         key={code} 
@@ -1394,22 +1586,73 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
                         <div 
                           className="category-header"
                           onClick={() => setExpandedCategories(prev => ({ ...prev, [code]: !prev[code] }))}
-                          style={isExceeded ? { color: '#dc2626', fontWeight: 'bold' } : {}}
+                          style={{
+                            ...isExceeded ? { color: '#dc2626', fontWeight: 'bold' } : {},
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                          }}
                         >
-                          <div className="category-info">
+                          <div className="category-info" style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
                             <span className="category-icon">{isExpanded ? '−' : '+'}</span>
-                            <span className="category-name">
+                            <span className="category-name" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                               {code} 
-                              <span style={{ fontSize: '0.75rem', opacity: 0.6, marginLeft: '8px', fontWeight: 'normal' }}>
-                                ({licencias.find(l => l.codigo === code)?.descripcion || 'Sin descripción'})
+                              <span style={{ fontSize: '0.75rem', opacity: 0.6, fontWeight: 'normal' }}>
+                                ({licConfig?.descripcion || 'Sin descripción'})
                               </span>
+                              {isExtensible && (
+                                <span style={{ fontSize: '0.65rem', background: '#e8f0fe', color: '#1a73e8', border: '1px solid rgba(26, 115, 232, 0.2)', padding: '1px 5px', borderRadius: '4px', fontWeight: '600' }}>
+                                  Extensible
+                                </span>
+                              )}
+                              {justifRecord && (
+                                <span style={{ fontSize: '0.65rem', background: '#e6f4ea', color: '#137333', border: '1px solid rgba(19, 115, 51, 0.2)', padding: '1px 5px', borderRadius: '4px', fontWeight: '600' }}>
+                                  Regularizado
+                                </span>
+                              )}
                             </span>
                             <span className="category-count">({totalCount} días)</span>
                           </div>
+                          
+                          {isExtensible && (
+                            <button 
+                              className="btn compact"
+                              style={{ 
+                                padding: '2px 8px', 
+                                fontSize: '0.7rem', 
+                                background: justifRecord ? 'rgba(16, 185, 129, 0.15)' : 'var(--primary)', 
+                                color: justifRecord ? '#10b981' : 'white',
+                                border: justifRecord ? '1px solid rgba(16, 185, 129, 0.3)' : 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                zIndex: 10,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                marginLeft: '10px'
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation(); // prevent accordion toggle
+                                openJustificacionModal(code, currentFilterYear, justifRecord?.motivo || '');
+                              }}
+                            >
+                              <FileText size={11} /> {justifRecord ? 'Editar Justificación' : 'Justificar'}
+                            </button>
+                          )}
                         </div>
                         
                         {isExpanded && (
                           <div className="category-details">
+                            {justifRecord && (
+                              <div style={{ fontSize: '0.75rem', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', padding: '8px 12px', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.2)', display: 'flex', flexDirection: 'column', gap: '3px', marginBottom: '10px' }}>
+                                <div style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                  <CheckCircle size={14} /> Licencia Justificada ({justifRecord.anio})
+                                </div>
+                                <div style={{ opacity: 0.85 }}>
+                                  <strong>Motivo regularizado:</strong> "{justifRecord.motivo}"
+                                </div>
+                              </div>
+                            )}
                             {items.map((item, idx) => (
                               <div key={idx} className="history-item">
                                 <div className="item-dot"></div>
@@ -1450,7 +1693,7 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
                   <a href={isEditingProfile ? editForm.adjunto_url : selectedTeacher.adjunto_url} target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ textDecoration: 'none' }}>
                     <ExternalLink size={16} /> Ver Archivo
                   </a>
-                  {isEditingProfile && (
+                  {isEditingProfile && user.rol === 'admin' && (
                     <button className="btn" style={{ background: 'rgba(220, 38, 38, 0.1)', color: '#dc2626' }} onClick={() => setEditForm({...editForm, adjunto_url: ''})}>
                       Eliminar
                     </button>
@@ -1458,70 +1701,77 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
                 </div>
               </div>
             ) : (
-              <div style={{ border: '2px dashed rgba(0,0,0,0.1)', borderRadius: '12px', padding: '2rem', textAlign: 'center' }}>
-                  <input 
-                    type="file" 
-                    id="fileUpload" 
-                    style={{ display: 'none' }} 
-                    accept="image/*,application/pdf"
-                    onChange={async (e) => {
-                      const file = e.target.files[0];
-                      if (!file) return;
+              user.rol === 'admin' ? (
+                <div style={{ border: '2px dashed rgba(0,0,0,0.1)', borderRadius: '12px', padding: '2rem', textAlign: 'center' }}>
+                    <input 
+                      type="file" 
+                      id="fileUpload" 
+                      style={{ display: 'none' }} 
+                      accept="image/*,application/pdf"
+                      onChange={async (e) => {
+                        const file = e.target.files[0];
+                        if (!file) return;
 
-                      // Límite de 32MB
-                      const MAX_SIZE = 32 * 1024 * 1024;
-                      if (file.size > MAX_SIZE) {
-                        return showToast('El archivo supera el límite de 32MB.', 'error');
-                      }
-
-                      const formData = new FormData();
-                      formData.append('image', file);
-                      
-                      const apiKey = data.config?.imgbb_api_key || '0622543d3b764c53835706593f619565'; 
-                      if (!data.config?.imgbb_api_key) {
-                        showToast('Usando API Key por defecto. Configura la tuya en Ajustes.', 'warning');
-                      }
-                      
-                      try {
-                        showToast('Subiendo archivo...', 'info');
-                        const res = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
-                          method: 'POST',
-                          body: formData
-                        });
-                        const json = await res.json();
-                        if (json.success) {
-                          const url = json.data.url;
-                          if (isEditingProfile) {
-                            setEditForm({...editForm, adjunto_url: url});
-                          } else {
-                            await apiService.fetchData('/api/teachers?action=update_teacher', {
-                              method: 'POST',
-                              body: JSON.stringify({ ...selectedTeacher, adjunto_url: url })
-                            });
-                            setSelectedTeacher({ ...selectedTeacher, adjunto_url: url });
-                            loadData();
-                          }
-                          showToast('Archivo subido con éxito', 'success');
-                        } else {
-                          // ImgBB suele fallar con PDFs
-                          if (file.type === 'application/pdf') {
-                            throw new Error('ImgBB no admite archivos PDF directamente. Intenta con una imagen o contacta a soporte.');
-                          }
-                          throw new Error(json.error.message);
+                        // Límite de 32MB
+                        const MAX_SIZE = 32 * 1024 * 1024;
+                        if (file.size > MAX_SIZE) {
+                          return showToast('El archivo supera el límite de 32MB.', 'error');
                         }
-                      } catch (err) {
-                        showToast('Error al subir: ' + err.message, 'error');
-                      }
-                    }}
-                  />
-                  <label htmlFor="fileUpload" style={{ cursor: 'pointer' }}>
-                    <div style={{ width: '60px', height: '60px', background: 'rgba(0,120,215,0.05)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem', color: 'var(--primary)' }}>
-                      <Upload size={30} />
-                    </div>
-                    <div style={{ fontWeight: '600', marginBottom: '5px' }}>Haz clic para subir documentación</div>
-                    <p style={{ fontSize: '0.8rem', opacity: 0.6 }}>Formatos soportados: JPG, PNG, PDF (Máx. 32MB)</p>
-                  </label>
-              </div>
+
+                        const formData = new FormData();
+                        formData.append('image', file);
+                        
+                        const apiKey = data.config?.imgbb_api_key || '0622543d3b764c53835706593f619565'; 
+                        if (!data.config?.imgbb_api_key) {
+                          showToast('Usando API Key por defecto. Configura la tuya en Ajustes.', 'warning');
+                        }
+                        
+                        try {
+                          showToast('Subiendo archivo...', 'info');
+                          const res = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
+                            method: 'POST',
+                            body: formData
+                          });
+                          const json = await res.json();
+                          if (json.success) {
+                            const url = json.data.url;
+                            if (isEditingProfile) {
+                              setEditForm({...editForm, adjunto_url: url});
+                            } else {
+                              await apiService.fetchData('/api/teachers?action=update_teacher', {
+                                method: 'POST',
+                                body: JSON.stringify({ ...selectedTeacher, adjunto_url: url })
+                              });
+                              setSelectedTeacher({ ...selectedTeacher, adjunto_url: url });
+                              loadData();
+                            }
+                            showToast('Archivo subido con éxito', 'success');
+                          } else {
+                            // ImgBB suele fallar con PDFs
+                            if (file.type === 'application/pdf') {
+                              throw new Error('ImgBB no admite archivos PDF directamente. Intenta con una imagen o contacta a soporte.');
+                            }
+                            throw new Error(json.error.message);
+                          }
+                        } catch (err) {
+                          showToast('Error al subir: ' + err.message, 'error');
+                        }
+                      }}
+                    />
+                    <label htmlFor="fileUpload" style={{ cursor: 'pointer' }}>
+                      <div style={{ width: '60px', height: '60px', background: 'rgba(0,120,215,0.05)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem', color: 'var(--primary)' }}>
+                        <Upload size={30} />
+                      </div>
+                      <div style={{ fontWeight: '600', marginBottom: '5px' }}>Haz clic para subir documentación</div>
+                      <p style={{ fontSize: '0.8rem', opacity: 0.6 }}>Formatos soportados: JPG, PNG, PDF (Máx. 32MB)</p>
+                    </label>
+                </div>
+              ) : (
+                <div style={{ background: 'rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.05)', borderRadius: '12px', padding: '1.5rem', textAlign: 'center', opacity: 0.6 }}>
+                  <FileText size={24} style={{ margin: '0 auto 10px', display: 'block', color: 'var(--primary)' }} />
+                  <div style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Sin documentación adjunta</div>
+                </div>
+              )
             )}
           </div>
 
@@ -1581,17 +1831,19 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
           />
         </div>
         
-        <button className="btn btn-primary" onClick={() => { 
-          setTeacherForm({ 
-            id: null, dni: '', apellidos_nombres: '', cargo: '', 
-            estado_actual: 'Activo en el cargo', codigo_cargo: '', c_hs: '', c_hs_reducidas: '', turno: '', alta_fecha: '',
-            baja_fecha: '', reintegro_fecha: '', excluir_asistencia: 0, num_disposicion: '', adjunto_url: '',
-            institucion_destino: '', tp_transitorias: 0, tp_horario_reducido: 0, tp_definitivas: 0, tp_concentracion: 0
-          }); 
-          setShowTeacherForm(true); 
-        }}>
-          <Plus size={16} /> Nuevo Docente
-        </button>
+        {user.rol === 'admin' && (
+          <button className="btn btn-primary" onClick={() => { 
+            setTeacherForm({ 
+              id: null, dni: '', apellidos_nombres: '', cargo: '', 
+              estado_actual: 'Activo en el cargo', codigo_cargo: '', c_hs: '', c_hs_reducidas: '', turno: '', alta_fecha: '',
+              baja_fecha: '', reintegro_fecha: '', excluir_asistencia: 0, num_disposicion: '', adjunto_url: '',
+              institucion_destino: '', tp_transitorias: 0, tp_horario_reducido: 0, tp_definitivas: 0, tp_concentracion: 0
+            }); 
+            setShowTeacherForm(true); 
+          }}>
+            <Plus size={16} /> Nuevo Docente
+          </button>
+        )}
 
         <button className="btn" onClick={() => setShowLicenseInitModal(true)} style={{ background: '#10b981', color: 'white' }}>
           <Calendar size={16} /> Inicio de Licencia
@@ -1681,6 +1933,10 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
 
               {days.filter(d => showWeekends || !d.isWeekend).map(d => {
                 const isSuspended = suspendedDays.includes(d.date);
+                const holidayName = holidaysMap[d.date];
+                const isHoliday = !!holidayName;
+                const isHolidayActive = isHoliday && !deactivatedHolidays.includes(d.date);
+                
                 return (
                 <th 
                   key={d.day} 
@@ -1688,22 +1944,62 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
                   className={`day-header ${d.isWeekend ? 'weekend' : ''}`} 
                   style={{ 
                     minWidth: '45px', maxWidth: '45px', textAlign: 'center', 
-                    background: isSuspended ? 'rgb(106, 189, 255)' : '',
+                    background: isSuspended ? 'rgb(106, 189, 255)' : (isHolidayActive ? '#fecaca' : ''),
                     borderLeft: d.dayName === 'LU' ? '2.5px solid white' : '0.5px solid rgba(255,255,255,0.1)',
                     borderRight: d.dayName === 'VIE' ? '2.5px solid white' : '0.5px solid rgba(255,255,255,0.1)',
-                    verticalAlign: 'middle'
+                    verticalAlign: 'middle',
+                    padding: '4px 2px'
                   }}
                 >
                   <div style={{ fontSize: '0.6rem', opacity: 0.7 }}>{d.dayName}</div>
-                  <div>{d.day}</div>
-                  <input type="checkbox" checked={suspendedDays.includes(d.date)} onChange={() => toggleSuspendedDay(d.date)} title="Suspender Día" style={{ transform: 'scale(0.8)', margin: '2px 0 0 0' }} />
+                  
+                  {isHoliday && (
+                    <div 
+                      onClick={() => setActiveHolidayDetail({ fecha: d.date, descripcion: holidayName })}
+                      style={{ 
+                        fontSize: '0.55rem', 
+                        fontWeight: 'bold', 
+                        color: '#dc2626', 
+                        cursor: 'pointer',
+                        background: '#fee2e2',
+                        padding: '1px 3px',
+                        borderRadius: '4px',
+                        display: 'inline-block',
+                        margin: '1px 0',
+                        border: '1px solid rgba(220, 38, 38, 0.2)'
+                      }}
+                      title={`Feriado: ${holidayName}. Clic para detalle`}
+                    >
+                      FE.
+                    </div>
+                  )}
+
+                  <div style={{ fontWeight: 'bold' }}>{d.day}</div>
+                  
+                  {isHoliday ? (
+                    <input 
+                      type="checkbox" 
+                      checked={isHolidayActive} 
+                      onChange={() => toggleDeactivatedHoliday(d.date)} 
+                      title={isHolidayActive ? "Desactivar feriado (desbloquear celdas)" : "Activar feriado (bloquear celdas)"} 
+                      style={{ transform: 'scale(0.8)', margin: '2px 0 0 0', accentColor: '#dc2626' }} 
+                    />
+                  ) : (
+                    <input 
+                      type="checkbox" 
+                      checked={suspendedDays.includes(d.date)} 
+                      onChange={() => toggleSuspendedDay(d.date)} 
+                      title="Suspender Día" 
+                      style={{ transform: 'scale(0.8)', margin: '2px 0 0 0' }} 
+                    />
+                  )}
                 </th>
               ); })}
               <th rowSpan={2} className="ui-vertical-header" style={{ verticalAlign: 'middle' }}>Total Oblig.</th>
               <th rowSpan={2} className="ui-vertical-header" style={{ verticalAlign: 'middle' }}>Total Días Asis.</th>
               <th rowSpan={2} className="ui-vertical-header" style={{ verticalAlign: 'middle' }}>Oblig. a Deducir</th>
               <th rowSpan={2} className="ui-vertical-header" style={{ verticalAlign: 'middle' }}>Días a Deducir</th>
-              <th rowSpan={2} style={{ verticalAlign: 'middle' }}>Acciones</th>
+              {user.rol === 'admin' && <th rowSpan={2} style={{ verticalAlign: 'middle' }}>Acciones</th>}
             </tr>
             <tr>
               <th style={{ 
@@ -1759,10 +2055,13 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
                     const isBeforeAlta = teacher.alta_fecha ? (d.date < teacher.alta_fecha) : false;
                     const isAfterBaja = (teacher.estado_actual === 'Baja' && teacher.baja_fecha) ? (d.date > teacher.baja_fecha) : false;
                     
+                    const isHolidayActive = !!holidaysMap[d.date] && !deactivatedHolidays.includes(d.date);
+                    
                     const isReadOnly = teacher.estado_actual === 'Relevado de Funciones' || 
                                        (teacher.estado_actual === 'Tareas Pasivas' && teacher.tp_concentracion) ||
                                        isBeforeAlta ||
-                                       isAfterBaja;
+                                       isAfterBaja ||
+                                       isHolidayActive;
                                        
                     const isSuspended = suspendedDays.includes(d.date);
                     return (
@@ -1770,7 +2069,7 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
                         key={d.day} 
                         style={{ 
                           textAlign: 'center', padding: '2px', 
-                          background: isSuspended ? 'rgb(106, 189, 255)' : 'transparent',
+                          background: isSuspended ? 'rgb(106, 189, 255)' : (isHolidayActive ? '#fef2f2' : 'transparent'),
                           borderLeft: d.dayName === 'LU' ? (isSuspended ? '2.5px solid white' : '2.5px solid #0078d733') : '0.5px solid rgba(0,0,0,0.05)',
                           borderRight: d.dayName === 'VIE' ? (isSuspended ? '2.5px solid white' : '2.5px solid #0078d733') : '0.5px solid rgba(0,0,0,0.05)'
                         }}
@@ -1778,23 +2077,23 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
                         {!isSuspended && (
                           <input 
                             list="attendance-codes"
-                            className={`attendance-input ${(isBeforeAlta || isAfterBaja) ? 'val-blocked' : ''}`} 
-                            value={effVal} 
+                            className={`attendance-input ${(isBeforeAlta || isAfterBaja || isHolidayActive) ? 'val-blocked' : ''}`} 
+                            value={isHolidayActive ? 'FE' : effVal} 
                             onChange={(e) => !isReadOnly && handleAttendanceChange(teacher.id, d.date, e.target.value)}
                             onBlur={(e) => !isReadOnly && handleBlur(teacher.id, d.date, e.target.value)}
-                            readOnly={isReadOnly && !(isBeforeAlta || isAfterBaja)}
-                            disabled={isBeforeAlta || isAfterBaja}
+                            readOnly={isReadOnly && !(isBeforeAlta || isAfterBaja || isHolidayActive)}
+                            disabled={isBeforeAlta || isAfterBaja || isHolidayActive}
                             style={{ 
                               padding: '2px', 
-                              fontSize: isReadOnly ? '0.55rem' : '0.7rem', 
+                              fontSize: (isReadOnly || isHolidayActive) ? '0.55rem' : '0.7rem', 
                               width: '40px', 
                               textAlign: 'center', 
                               borderRadius: '4px', 
-                              border: isReadOnly ? 'none' : '1px solid #ccc', 
-                              color: (isBeforeAlta || isAfterBaja) ? '#94a3b8' : (isReadOnly ? 'red' : 'black'), 
-                              fontWeight: isReadOnly ? 'bold' : 'normal',
-                              background: (isBeforeAlta || isAfterBaja) ? '#f1f5f9' : (isReadOnly ? 'transparent' : 'white'),
-                              cursor: (isBeforeAlta || isAfterBaja) ? 'not-allowed' : 'inherit'
+                              border: (isReadOnly || isHolidayActive) ? 'none' : '1px solid #ccc', 
+                              color: (isBeforeAlta || isAfterBaja) ? '#94a3b8' : (isHolidayActive ? '#dc2626' : (isReadOnly ? 'red' : 'black')), 
+                              fontWeight: (isReadOnly || isHolidayActive) ? 'bold' : 'normal',
+                              background: (isBeforeAlta || isAfterBaja) ? '#f1f5f9' : (isHolidayActive ? '#fee2e2' : (isReadOnly ? 'transparent' : 'white')),
+                              cursor: (isBeforeAlta || isAfterBaja || isHolidayActive) ? 'not-allowed' : 'inherit'
                             }}
                           />
                         )}
@@ -1805,31 +2104,33 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
                   <td style={{ textAlign: 'center' }}><input type="text" className="input-field" style={{ width: '40px', padding: '2px', fontSize: '0.6rem', textAlign: 'center' }} /></td>
                   <td style={{ textAlign: 'center' }}><input type="text" className="input-field" style={{ width: '40px', padding: '2px', fontSize: '0.6rem', textAlign: 'center' }} /></td>
                   <td style={{ textAlign: 'center' }}><input type="text" className="input-field" style={{ width: '40px', padding: '2px', fontSize: '0.6rem', textAlign: 'center' }} /></td>
-                  <td>
-                    <div style={{ display: 'flex', gap: '5px' }}>
-                      <button className="icon-btn" onClick={() => { 
-                        setTeacherForm({
-                          id: teacher.id, dni: teacher.dni, apellidos_nombres: teacher.apellidos_nombres,
-                          cargo: teacher.cargo, estado_actual: teacher.estado_actual,
-                          codigo_cargo: teacher.codigo_cargo, c_hs: teacher.c_hs,
-                          c_hs_reducidas: teacher.c_hs_reducidas || '',
-                          turno: teacher.turno, alta_fecha: teacher.alta_fecha,
-                          baja_fecha: teacher.baja_fecha || '', 
-                          reintegro_fecha: teacher.reintegro_fecha || '',
-                          excluir_asistencia: teacher.excluir_asistencia || 0,
-                          num_disposicion: teacher.num_disposicion || '',
-                          adjunto_url: teacher.adjunto_url || '',
-                          institucion_destino: teacher.institucion_destino || '',
-                          tp_transitorias: teacher.tp_transitorias || 0,
-                          tp_horario_reducido: teacher.tp_horario_reducido || 0,
-                          tp_definitivas: teacher.tp_definitivas || 0,
-                          tp_concentracion: teacher.tp_concentracion || 0
-                        }); 
-                        setShowTeacherForm(true); 
-                      }}><Edit size={14}/></button>
-                      <button className="icon-btn danger" onClick={() => handleDeleteTeacher(teacher.id)}><Trash2 size={14}/></button>
-                    </div>
-                  </td>
+                  {user.rol === 'admin' && (
+                    <td>
+                      <div style={{ display: 'flex', gap: '5px' }}>
+                        <button className="icon-btn" onClick={() => { 
+                          setTeacherForm({
+                            id: teacher.id, dni: teacher.dni, apellidos_nombres: teacher.apellidos_nombres,
+                            cargo: teacher.cargo, estado_actual: teacher.estado_actual,
+                            codigo_cargo: teacher.codigo_cargo, c_hs: teacher.c_hs,
+                            c_hs_reducidas: teacher.c_hs_reducidas || '',
+                            turno: teacher.turno, alta_fecha: teacher.alta_fecha,
+                            baja_fecha: teacher.baja_fecha || '', 
+                            reintegro_fecha: teacher.reintegro_fecha || '',
+                            excluir_asistencia: teacher.excluir_asistencia || 0,
+                            num_disposicion: teacher.num_disposicion || '',
+                            adjunto_url: teacher.adjunto_url || '',
+                            institucion_destino: teacher.institucion_destino || '',
+                            tp_transitorias: teacher.tp_transitorias || 0,
+                            tp_horario_reducido: teacher.tp_horario_reducido || 0,
+                            tp_definitivas: teacher.tp_definitivas || 0,
+                            tp_concentracion: teacher.tp_concentracion || 0
+                          }); 
+                          setShowTeacherForm(true); 
+                        }}><Edit size={14}/></button>
+                        <button className="icon-btn danger" onClick={() => handleDeleteTeacher(teacher.id)}><Trash2 size={14}/></button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               )})
             )}
@@ -1929,6 +2230,62 @@ const AttendancePanel = ({ user, data, apiService, showToast, isMobile, onTeache
               <button className="btn" style={{ flex: 1, background: 'rgba(255,255,255,0.1)' }} onClick={() => setShowLicenseInitModal(false)}>Cancelar</button>
               <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleBulkLicense}>Aplicar Licencia</button>
             </div>
+          </div>
+        </Modal>
+      )}
+
+      {showJustificacionModal && (
+        <Modal title={`Justificar Licencia ${justifModalData.codigo} - Año ${justifModalData.anio}`} onClose={() => setShowJustificacionModal(false)}>
+          <div className="stack-form" style={{ marginTop: '1rem', gap: '1.2rem' }}>
+            <div style={{ background: 'rgba(59, 130, 246, 0.05)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.1)', fontSize: '0.85rem', color: 'var(--text-main)', opacity: 0.9 }}>
+              Esta licencia es de carácter <strong>Extensible</strong>. Puede regularizar el límite estipulado para el docente ingresando un motivo de justificación (resolución, nota formal, etc.).
+            </div>
+            <div className="info-item">
+              <label>Año de la Licencia</label>
+              <input 
+                type="text" 
+                className="input-field" 
+                value={justifModalData.anio} 
+                readOnly 
+                style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', cursor: 'not-allowed' }}
+              />
+            </div>
+            <div className="info-item">
+              <label>Motivo de la Justificación *</label>
+              <textarea 
+                className="input-field" 
+                placeholder="Escriba el motivo, resolución o justificación formal..." 
+                value={justifModalData.motivo} 
+                onChange={e => setJustifModalData({...justifModalData, motivo: e.target.value})}
+                rows={4}
+                style={{ width: '100%', resize: 'vertical', fontFamily: 'inherit', padding: '8px 12px', fontSize: '0.9rem', background: 'white', color: 'black' }}
+                required
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '1rem' }}>
+              <button className="btn" style={{ flex: 1, background: 'rgba(255,255,255,0.1)' }} onClick={() => setShowJustificacionModal(false)}>Cancelar</button>
+              <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleSaveJustificacion}>Guardar Justificación</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {activeHolidayDetail && (
+        <Modal title="Detalle de Feriado Nacional" onClose={() => setActiveHolidayDetail(null)}>
+          <div style={{ padding: '1.5rem', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '1.2rem', alignItems: 'center' }}>
+            <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444' }}>
+              <Flag size={32} />
+            </div>
+            <div>
+              <h3 style={{ fontSize: '1.2rem', color: 'white', marginBottom: '8px', fontWeight: 'bold' }}>{activeHolidayDetail.descripcion}</h3>
+              <p style={{ fontSize: '0.95rem', opacity: 0.7 }}>Fecha del Feriado: {activeHolidayDetail.fecha.split('-').reverse().join('/')}</p>
+            </div>
+            <div style={{ fontSize: '0.8rem', opacity: 0.5, borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px', width: '100%' }}>
+              * Este día está registrado como feriado nacional en el sistema. Bloquea la planilla por defecto, pero puedes desbloquearlo si necesitas cargar datos en esta columna.
+            </div>
+            <button className="btn btn-primary" onClick={() => setActiveHolidayDetail(null)} style={{ width: '100%', justifyContent: 'center', marginTop: '10px' }}>
+              Entendido
+            </button>
           </div>
         </Modal>
       )}
