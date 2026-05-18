@@ -27,6 +27,7 @@ function App() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [mobileLoginEnabled, setMobileLoginEnabled] = useState(true);
   const [schoolName, setSchoolName] = useState('EGB 33');
+  const [theme, setTheme] = useState(() => localStorage.getItem('app_theme') || 'light');
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -36,8 +37,13 @@ function App() {
   }, []);
 
   useEffect(() => {
-    document.title = `Asistencia - ${schoolName}`;
+    document.title = 'Asistencia Docente';
   }, [schoolName]);
+
+  useEffect(() => {
+    document.body.setAttribute('data-theme', theme);
+    localStorage.setItem('app_theme', theme);
+  }, [theme]);
 
   useEffect(() => {
     const handleAuthError = () => {
@@ -217,6 +223,8 @@ function App() {
                 isMobile={isMobile}
                 schoolName={schoolName}
                 onSchoolNameChange={setSchoolName}
+                theme={theme}
+                onThemeChange={setTheme}
               />
             ) : (
               <Navigate to="/" replace />

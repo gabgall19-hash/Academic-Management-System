@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Layers, Settings, LogOut, Menu, X, ShieldAlert } from 'lucide-react';
+import { Layers, Settings, LogOut, Menu, X, ShieldAlert, Moon, Sun } from 'lucide-react';
 import AttendancePanel from './AttendancePanel';
 import SettingsPanel from './SettingsPanel';
 
-const Dashboard = ({ user, onLogout, onUpdateSelfPassword, isMobile, showToast, schoolName, onSchoolNameChange }) => {
+const Dashboard = ({ user, onLogout, onUpdateSelfPassword, isMobile, showToast, schoolName, onSchoolNameChange, theme, onThemeChange }) => {
   const [activeTab, setActiveTab] = useState('asistencia');
   const [data, setData] = useState({ users: [], config: {} });
   const [loading, setLoading] = useState(true);
@@ -139,7 +139,13 @@ const Dashboard = ({ user, onLogout, onUpdateSelfPassword, isMobile, showToast, 
           </div>
         </div>
         
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.4rem 1rem', background: 'rgba(255,255,255,0.5)', borderRadius: '12px', border: '1px solid var(--glass-border)', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.4rem 1rem', background: 'var(--glass-bg)', borderRadius: '12px', border: '1px solid var(--glass-border)', boxShadow: 'var(--glass-shadow)' }}>
+          <button className="icon-btn" onClick={() => onThemeChange(theme === 'light' ? 'dark' : 'light')} title="Alternar tema" style={{ color: 'var(--text-main)' }}>
+            {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+          </button>
+
+          {!isMobile && <div style={{ width: '1px', height: '24px', background: 'var(--glass-border)' }}></div>}
+
           {!isMobile && <div style={{ textAlign: 'right' }}>
             <div style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '0.9rem', textTransform: 'lowercase' }}>@{user.rol}</div>
             <div style={{ color: 'var(--primary)', fontWeight: '800', fontSize: '0.65rem', textTransform: 'none', letterSpacing: '0.05em' }}>{user.username}</div>
