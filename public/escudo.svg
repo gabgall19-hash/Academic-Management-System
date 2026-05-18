@@ -1,0 +1,87 @@
+<svg viewBox="0 0 400 400" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+  <!-- Styles for premium look and responsiveness -->
+  <style>
+    .circular-text {
+      font-family: 'Montserrat', 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+      font-size: 15.5px;
+      font-weight: 800;
+      letter-spacing: 3.2px;
+      fill: #1e293b;
+    }
+    .circular-text-bottom {
+      font-family: 'Montserrat', 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+      font-size: 16.5px;
+      font-weight: 800;
+      letter-spacing: 4px;
+      fill: #1e293b;
+    }
+  </style>
+
+  <!-- Outer Double Rings -->
+  <!-- Outer thick circle -->
+  <circle cx="200" cy="200" r="185" fill="#f8fafc" stroke="#1e293b" stroke-width="5" />
+  <!-- Inner thin circle -->
+  <circle cx="200" cy="200" r="142" fill="none" stroke="#1e293b" stroke-width="2" />
+
+  <!-- Hidden paths for curved text -->
+  <!-- Clockwise top arc -->
+  <path id="text-path-top" d="M 64,200 A 136,136 0 0,1 336,200" fill="none" stroke="none" />
+  <!-- Counter-clockwise bottom arc (starts right, goes to left) -->
+  <path id="text-path-bottom" d="M 336,200 A 136,136 0 0,1 64,200" fill="none" stroke="none" />
+
+  <!-- Curved Texts -->
+  <text class="circular-text">
+    <textPath href="#text-path-top" startOffset="50%" text-anchor="middle">
+      CRIO. INSP. VICTORIANO E. TARET
+    </textPath>
+  </text>
+  
+  <text class="circular-text-bottom">
+    <textPath href="#text-path-bottom" startOffset="50%" text-anchor="middle">
+      EGB Nº 33
+    </textPath>
+  </text>
+
+  <!-- Patagonian Wind Waves (sky context) -->
+  <path d="M 140,110 Q 200,94 260,110" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" opacity="0.5" />
+  <path d="M 155,118 Q 200,104 245,118" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" opacity="0.5" />
+  <path d="M 170,126 Q 200,114 230,126" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" opacity="0.5" />
+
+  <!-- Central Heraldic Shield -->
+  <!-- Base Shield Shape -->
+  <path d="M 130,140 Q 165,150 200,135 Q 235,150 270,140 Q 278,212 200,272 Q 122,212 130,140 Z" 
+        fill="#ffffff" stroke="#1e293b" stroke-width="3" stroke-linejoin="round" />
+
+  <!-- Inner Elements of the Shield -->
+  
+  <!-- 1. The Sun (upper right) -->
+  <circle cx="236" cy="176" r="13" fill="#f59e0b" />
+  <!-- Crisp sun rays -->
+  <g stroke="#f59e0b" stroke-width="2.2" stroke-linecap="round">
+    <line x1="236" y1="158" x2="236" y2="153" />
+    <line x1="236" y1="194" x2="236" y2="199" />
+    <line x1="218" y1="176" x2="213" y2="176" />
+    <line x1="254" y1="176" x2="259" y2="176" />
+    
+    <line x1="223.3" y1="163.3" x2="219.8" y2="159.8" />
+    <line x1="248.7" y1="188.7" x2="252.2" y2="192.2" />
+    <line x1="223.3" y1="188.7" x2="219.8" y2="192.2" />
+    <line x1="248.7" y1="163.3" x2="252.2" y2="159.8" />
+  </g>
+
+  <!-- 2. Stylized Book Foundation (lower middle) -->
+  <!-- Red book cover / base -->
+  <path d="M 166,226 L 226,226 L 216,246 L 176,246 Z" fill="#ef4444" stroke="#1e293b" stroke-width="2" stroke-linejoin="round" />
+  <!-- White pages block -->
+  <path d="M 171,211 L 221,211 L 226,226 L 166,226 Z" fill="#ffffff" stroke="#1e293b" stroke-width="2" stroke-linejoin="round" />
+  <!-- Middle line showing book pages dividing -->
+  <line x1="196" y1="211" x2="196" y2="226" stroke="#1e293b" stroke-width="1.5" />
+
+  <!-- 3. Stylized Wind Ribbon / Flame (left sweeping curve) -->
+  <!-- Deep orange-brown flame path wrapping elegantly around the left side -->
+  <path d="M 152,170 C 141,185 141,215 161,230 C 151,220 146,200 154,185 C 160,172 172,175 180,185 C 187,195 182,210 167,225" 
+        fill="none" stroke="#d97706" stroke-width="3" stroke-linecap="round" />
+  
+  <path d="M 160,185 C 164,192 167,198 167,205" 
+        fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" />
+</svg>
